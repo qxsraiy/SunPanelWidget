@@ -5,20 +5,21 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.util.Log
+import android.view.View
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 import com.sunpanel.widget.data.PreferencesManager
-import com.sunpanel.widget.data.ItemIconInfo
-import com.sunpanel.widget.data.CachedGroupData
+import com.sunpanel.widget.data.WidgetDisplayItem
+import com.sunpanel.widget.data.toWidgetDisplayList
 
 /**
- * RemoteViewsService — 为 GridView 提供数据（可滑动网格，无分组标题）
+ * RemoteViewsService — 为 GridView 提供数据
  *
- * 按最原始设计文档：
- * - 每个 GridView item = 字母色块图标 + 标题
- * - fill-in data URI = 真实 URL（FILL_IN_DATA 合并，最可靠）
- * - 模板用 ACTION_VIEW，系统直接 startActivity 打开浏览器
- * - 无 Bitmap（纯文字图标，零超限风险）
+ * 实现方式与最初可点击版本完全一致：
+ * - 单布局（widget_item.xml），viewTypeCount=1
+ * - fill-in 设置在 widgetItemRoot/widgetItemIcon/widgetItemTitle（三个位置）
+ * - fill-in 只传 extras（click_url）→ 显式广播 ACTION_CLICK → Provider 打开浏览器
+ * - 分组标题也使用同一布局，仅隐藏图标和备注，不设 fill-in
  */
 class SunPanelRemoteViewsService : RemoteViewsService() {
 
@@ -35,7 +36,7 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
         private val appWidgetId: Int
             get() = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
 
-        private var allBookmarks: List<ItemIconInfo> = emptyList()
+        private var displayItems: List<WidgetDisplayItem> = emptyList()
 
         private val colorPool = intArrayOf(
             0xFF4A90D9.toInt(), 0xFF50B86C.toInt(), 0xFFE67E22.toInt(),
@@ -53,66 +54,31 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
             try {
                 val prefs = PreferencesManager.getInstance(context)
                 val data = prefs.cachedPanelData
-
-                // 展开所有分组的书签为扁平列表
-                allBookmarks = if (data != null) {
-                    data.groups.flatMap { group -> group.bookmarks }
-                } else {
-                    emptyList()
-                }
-                Log.d(TAG, "onDataSetChanged: 加载了 ${allBookmarks.size} 个书签")
+                displayItems = data?.toWidgetDisplayList() ?: emptyList()
+                Log.d(TAG, "onDataSetChanged: 加载了 ${displayItems.size} 项")
             } catch (e: Exception) {
                 Log.e(TAG, "onDataSetChanged 失败", e)
-                allBookmarks = emptyList()
+                displayItems = emptyList()
             }
         }
 
-        override fun getCount(): Int = allBookmarks.size
+        override fun getCount(): Int = displayItems.size
 
+        // ⭐ 单布局（与最初可点击版本一致）
         override fun getViewTypeCount(): Int = 1
 
         override fun getViewAt(position: Int): RemoteViews {
             try {
-                if (position < 0 || position >= allBookmarks.size) {
+                if (position < 0 || position >= displayItems.size) {
                     return RemoteViews(context.packageName, R.layout.widget_item)
                 }
 
-                val info = allBookmarks[position]
+                val item = displayItems[position]
                 val views = RemoteViews(context.packageName, R.layout.widget_item)
 
-                // 标题
-                val title = info.title.ifBlank { "未命名" }
-                views.setTextViewText(R.id.widgetItemTitle, title)
-
-                // 字母色块图标（无 Bitmap）
-                val letter = title.first().uppercaseChar().toString()
-                val bgColor = tryParseColor(info.icon?.backgroundColor) ?: generateColor(title)
-                views.setTextViewText(R.id.widgetItemIcon, letter)
-                views.setInt(R.id.widgetItemIcon, "setBackgroundColor", bgColor)
-
-                // ⭐ 真实 URL → 塞入 fill-in 的 data URI
-                // 系统合并时，FILL_IN_DATA 会覆盖模板的占位 URL，最终 startActivity(ACTION_VIEW + 真实URL)
-                val targetUrl = when {
-                    !info.url.isNullOrBlank() -> info.url
-                    !info.lanUrl.isNullOrBlank() -> info.lanUrl
-                    else -> ""
-                }
-                val httpUrl = if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
-                    targetUrl
-                } else if (targetUrl.isNotBlank()) {
-                    "https://$targetUrl"
-                } else ""
-
-                if (httpUrl.isNotBlank()) {
-                    // ⭐ 终极方案：fill-in 只传 extras（click_url），不改 Action / Data
-                    // 模板是显式广播（ACTION_CLICK），fill-in 合并后到达
-                    // SunPanelWidgetProvider.onReceive → startActivity 打开浏览器
-                    val fillInIntent = Intent().apply {
-                        putExtra("click_url", httpUrl)
-                    }
-                    views.setOnClickFillInIntent(R.id.widgetItemRoot, fillInIntent)
-                    views.setOnClickFillInIntent(R.id.widgetItemIcon, fillInIntent)
-                    views.setOnClickFillInIntent(R.id.widgetItemTitle, fillInIntent)
+                when (item) {
+                    is WidgetDisplayItem.Header -> renderHeader(views, item)
+                    is WidgetDisplayItem.Bookmark -> renderBookmark(views, item)
                 }
 
                 return views
@@ -122,11 +88,86 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
             }
         }
 
+        /** 分组标题：纯文字，隐藏图标和备注，不设 fill-in */
+        private fun renderHeader(views: RemoteViews, header: WidgetDisplayItem.Header) {
+            views.setTextViewText(R.id.widgetItemTitle, header.groupName)
+            // 隐藏图标和备注
+            views.setViewVisibility(R.id.widgetItemIcon, View.GONE)
+            views.setViewVisibility(R.id.widgetItemDesc, View.GONE)
+            // 标题加粗加大，留出分组间距
+            views.setTextViewTextSize(R.id.widgetItemTitle, android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
+            // 注意：不设 fill-in，点击分组标题什么都不做
+        }
+
+        /** 书签卡片：色块图标 + 名称 + 备注 + fill-in 点击 */
+        private fun renderBookmark(views: RemoteViews, bookmark: WidgetDisplayItem.Bookmark) {
+            val info = bookmark.item
+
+            // 显示图标和备注
+            views.setViewVisibility(R.id.widgetItemIcon, View.VISIBLE)
+            views.setViewVisibility(R.id.widgetItemDesc, View.VISIBLE)
+
+            // 名称
+            val title = info.title.ifBlank { "未命名" }
+            views.setTextViewText(R.id.widgetItemTitle, title)
+            views.setTextViewTextSize(R.id.widgetItemTitle, android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
+
+            // 备注（description 优先，其次域名，再留空）
+            val desc = when {
+                !info.description.isNullOrBlank() -> info.description
+                !info.url.isNullOrBlank() -> shortDomain(info.url)
+                else -> ""
+            }
+            views.setTextViewText(R.id.widgetItemDesc, desc)
+
+            // 色块图标（无 Bitmap）
+            val letter = title.first().uppercaseChar().toString()
+            val bgColor = tryParseColor(info.icon?.backgroundColor) ?: generateColor(title)
+            views.setTextViewText(R.id.widgetItemIcon, letter)
+            views.setInt(R.id.widgetItemIcon, "setBackgroundColor", bgColor)
+
+            // ⭐ 真实 URL → fill-in extras（与最初可点击版本完全一致）
+            val targetUrl = when {
+                !info.url.isNullOrBlank() -> info.url
+                !info.lanUrl.isNullOrBlank() -> info.lanUrl
+                else -> ""
+            }
+            val httpUrl = if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
+                targetUrl
+            } else if (targetUrl.isNotBlank()) {
+                "https://$targetUrl"
+            } else ""
+
+            if (httpUrl.isNotBlank()) {
+                val fillInIntent = Intent().apply {
+                    putExtra("click_url", httpUrl)
+                }
+                // ⭐ 三个位置都设 fill-in（与最初可点击版本完全一致）
+                views.setOnClickFillInIntent(R.id.widgetItemRoot, fillInIntent)
+                views.setOnClickFillInIntent(R.id.widgetItemIcon, fillInIntent)
+                views.setOnClickFillInIntent(R.id.widgetItemTitle, fillInIntent)
+                // 新增：备注区域也设 fill-in，点击描述也能打开
+                views.setOnClickFillInIntent(R.id.widgetItemDesc, fillInIntent)
+            }
+        }
+
         override fun getLoadingView(): RemoteViews? = null
         override fun getItemId(position: Int): Long = position.toLong()
         override fun hasStableIds(): Boolean = false
 
-        // ========== 颜色工具 ==========
+        // ========== 工具 ==========
+
+        /** 从 URL 提取域名（用于备注兜底显示） */
+        private fun shortDomain(url: String): String {
+            return try {
+                val clean = url.trim()
+                    .removePrefix("https://").removePrefix("http://")
+                    .removePrefix("www.")
+                clean.substringBefore("/")
+            } catch (_: Exception) {
+                url
+            }
+        }
 
         private fun tryParseColor(color: String?): Int? {
             if (color.isNullOrBlank()) return null

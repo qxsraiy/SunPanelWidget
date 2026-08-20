@@ -4,19 +4,19 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_background">
 
+    <!-- 单列网格（= 列表流）：顶部对齐，每个 item 高度自适应 -->
     <GridView
         android:id="@+id/widgetGrid"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:listSelector="@android:color/transparent"
-        android:numColumns="auto_fit"
-        android:columnWidth="66dp"
-        android:horizontalSpacing="6dp"
-        android:verticalSpacing="6dp"
-        android:gravity="center"
-        android:stretchMode="spacingWidthUniform"
+        android:numColumns="1"
+        android:horizontalSpacing="0dp"
+        android:verticalSpacing="8dp"
+        android:gravity="top"
+        android:stretchMode="columnWidth"
         android:clipToPadding="false"
-        android:padding="8dp" />
+        android:padding="12dp" />
 
     <TextView
         android:id="@+id/widgetEmptyView"
