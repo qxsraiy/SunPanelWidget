@@ -431,11 +431,9 @@ class SettingsFragment : Fragment() {
             setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
             setDimAmount(0.3f)
         }
-        // 按钮文字颜色（Dialog 默认可能白色，此处显式设置为深色）
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(Color.parseColor("#1F2937"))
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(Color.parseColor("#6B7280"))
-        }
+        // 按钮文字颜色：必须在 show() 之后才能拿到按钮，直接设置（深色，保证白底可读）
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(Color.parseColor("#1F2937"))
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(Color.parseColor("#6B7280"))
     }
 
     // ========== UI 工具 ==========
