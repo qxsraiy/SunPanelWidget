@@ -38,11 +38,12 @@ android {
     buildFeatures {
         viewBinding = true
     }
+}
 
-    kotlin {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-        }
+// Kotlin 编译器配置（必须在 android{} 外部，项目级扩展）
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
