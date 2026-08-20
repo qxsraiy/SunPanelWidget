@@ -1,34 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 应用图标前景：网格 + 链接 -->
+<!-- 应用图标前景：白色底 + 四个正方形四色格子（中缝4，四周31，精准居中） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 大圆角网格背景 -->
+    <!-- 白色背景 -->
     <path
-        android:pathData="M30,24 L78,24 A12,12 0 0 1 90,36 L90,84 A12,12 0 0 1 78,96 L30,96 A12,12 0 0 1 18,84 L18,36 A12,12 0 0 1 30,24 Z"
-        android:fillColor="#FF1E293B" />
-    <!-- 4个格子 -->
+        android:pathData="M0,0 L108,0 L108,108 L0,108 Z"
+        android:fillColor="#FFFFFFFF" />
+
+    <!-- 左上方格：蓝色（31,31 → 52,52，21×21） -->
     <path
-        android:pathData="M30,24 L50,24 L50,52 L30,52 Z"
+        android:pathData="M31,31 L52,31 L52,52 L31,52 Z"
         android:fillColor="#FF3B82F6" />
+    <!-- 右上方格：绿色（56,31 → 77,52，21×21） -->
     <path
-        android:pathData="M58,24 L78,24 L78,52 L58,52 Z"
+        android:pathData="M56,31 L77,31 L77,52 L56,52 Z"
         android:fillColor="#FF10B981" />
+    <!-- 左下方格：橙色（31,56 → 52,77，21×21） -->
     <path
-        android:pathData="M30,60 L50,60 L50,96 L30,96 Z"
+        android:pathData="M31,56 L52,56 L52,77 L31,77 Z"
         android:fillColor="#FFF59E0B" />
+    <!-- 右下方格：红色（56,56 → 77,77，21×21） -->
     <path
-        android:pathData="M58,60 L78,60 L78,96 L58,96 Z"
+        android:pathData="M56,56 L77,56 L77,77 L56,77 Z"
         android:fillColor="#FFEF4444" />
-    <!-- 中间链接 -->
-    <path
-        android:pathData="M50,52 L58,52"
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="3" />
-    <path
-        android:pathData="M52,60 L52,52 M58,52 L58,60"
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2.5" />
 </vector>
