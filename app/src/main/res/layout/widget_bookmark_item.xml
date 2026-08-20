@@ -1,16 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 书签行：横向卡片布局，图标(字母TextView)+标题+描述 -->
+<!-- 书签卡片行（字母图标 + 标题 + 描述，圆角卡片背景） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widgetItemRoot"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
+    android:layout_marginBottom="6dp"
     android:background="@drawable/widget_item_background"
+    android:clickable="true"
+    android:focusable="true"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:padding="12dp">
+    android:padding="10dp">
 
-    <!-- 字母图标（动态背景色+首字母） -->
     <TextView
         android:id="@+id/widgetItemIcon"
         android:layout_width="44dp"
@@ -21,16 +22,14 @@
         android:textSize="22sp"
         android:textStyle="bold" />
 
-    <!-- 文字区 -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"
-        android:layout_marginStart="12dp"
+        android:layout_marginStart="10dp"
         android:layout_weight="1"
         android:orientation="vertical">
 
-        <!-- 标题 -->
         <TextView
             android:id="@+id/widgetItemTitle"
             android:layout_width="wrap_content"
@@ -41,7 +40,6 @@
             android:textSize="14sp"
             android:textStyle="bold" />
 
-        <!-- 描述 -->
         <TextView
             android:id="@+id/widgetItemDesc"
             android:layout_width="wrap_content"

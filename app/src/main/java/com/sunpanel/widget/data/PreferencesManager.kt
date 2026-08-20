@@ -71,6 +71,16 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_USE_CHROME, false)
         set(value) = prefs.edit().putBoolean(KEY_USE_CHROME, value).apply()
 
+    // === 小部件翻页页码（按widgetId存储） ===
+
+    fun getWidgetPage(widgetId: Int): Int {
+        return prefs.getInt("widget_page_$widgetId", 0)
+    }
+
+    fun setWidgetPage(widgetId: Int, page: Int) {
+        prefs.edit().putInt("widget_page_$widgetId", page).apply()
+    }
+
     // === 缓存的书签图标Bitmap (以Base64形式存储) ===
     // 为了性能，图标建议存为文件，这里用Map管理路径
     // 实际运行时图标缓存到内部缓存目录

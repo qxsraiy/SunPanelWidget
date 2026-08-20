@@ -1,16 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 分组标题行 -->
+<!-- 分组标题行（无背景，只有文字 + 左侧色条） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widgetHeaderRoot"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="14dp"
-    android:layout_marginBottom="8dp"
-    android:background="@drawable/widget_header_background"
+    android:clickable="true"
+    android:focusable="true"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingHorizontal="12dp"
-    android:paddingVertical="8dp">
+    android:paddingStart="4dp"
+    android:paddingTop="14dp"
+    android:paddingEnd="4dp"
+    android:paddingBottom="4dp">
+
+    <!-- 左侧色条 -->
+    <View
+        android:layout_width="3dp"
+        android:layout_height="18dp"
+        android:layout_marginEnd="8dp"
+        android:background="#FF3B82F6" />
 
     <TextView
         android:id="@+id/widgetHeaderTitle"
@@ -21,13 +28,4 @@
         android:textColor="#FFFFFF"
         android:textSize="15sp"
         android:textStyle="bold" />
-
-    <!-- 分隔线 -->
-    <View
-        android:layout_width="0dp"
-        android:layout_height="1dp"
-        android:layout_gravity="center_vertical"
-        android:layout_marginStart="10dp"
-        android:layout_weight="1"
-        android:background="#44FFFFFF" />
 </LinearLayout>

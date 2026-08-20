@@ -3,275 +3,139 @@ package com.sunpanel.widget
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.RectF
-import android.net.Uri
-import android.view.View
+import android.util.Log
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 import com.sunpanel.widget.data.PreferencesManager
-import com.sunpanel.widget.data.WidgetDisplayItem
-import com.sunpanel.widget.data.toWidgetDisplayList
-import java.io.File
+import com.sunpanel.widget.data.ItemIconInfo
+import com.sunpanel.widget.data.CachedGroupData
 
 /**
- * 远程视图服务（RemoteViewsService）
+ * RemoteViewsService — 为 GridView 提供数据（可滑动网格，无分组标题）
  *
- * 为 ListView 提供分组标题 + 书签的混合数据。
- * 使用 getViewTypeCount() = 2 区分两种行类型。
- * 图标全部使用文字首字母，不加载网络图片，保证滑动流畅。
+ * 按最原始设计文档：
+ * - 每个 GridView item = 字母色块图标 + 标题
+ * - fill-in data URI = 真实 URL（FILL_IN_DATA 合并，最可靠）
+ * - 模板用 ACTION_VIEW，系统直接 startActivity 打开浏览器
+ * - 无 Bitmap（纯文字图标，零超限风险）
  */
 class SunPanelRemoteViewsService : RemoteViewsService() {
 
     override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
-        val appWidgetId = intent.getIntExtra(
-            AppWidgetManager.EXTRA_APPWIDGET_ID,
-            AppWidgetManager.INVALID_APPWIDGET_ID
-        )
-        return SunPanelViewsFactory(applicationContext, appWidgetId)
+        return SunPanelRemoteViewsFactory(applicationContext, intent)
     }
 
-    /**
-     * 两种行类型
-     */
-    companion object {
-        private const val VIEW_TYPE_HEADER = 0
-        private const val VIEW_TYPE_BOOKMARK = 1
-        private const val VIEW_TYPE_COUNT = 2
-    }
-
-    class SunPanelViewsFactory(
+    class SunPanelRemoteViewsFactory(
         private val context: Context,
-        private val appWidgetId: Int
+        private val intent: Intent
     ) : RemoteViewsService.RemoteViewsFactory {
 
-        /** 展平的显示列表（分组标题 + 书签混合） */
-        private val displayItems = mutableListOf<WidgetDisplayItem>()
+        private val TAG = "SunPanelWidget"
+        private val appWidgetId: Int
+            get() = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
 
-        /** 图标内存缓存：首字母 -> Bitmap */
-        private val iconMemoryCache = HashMap<String, Bitmap>()
+        private var allBookmarks: List<ItemIconInfo> = emptyList()
 
-        // ========== 生命周期 ==========
+        private val colorPool = intArrayOf(
+            0xFF4A90D9.toInt(), 0xFF50B86C.toInt(), 0xFFE67E22.toInt(),
+            0xFF9B59B6.toInt(), 0xFF1ABC9C.toInt(), 0xFFE74C3C.toInt(),
+            0xFF3498DB.toInt(), 0xFF2ECC71.toInt(), 0xFFF39C12.toInt(),
+            0xFF8E44AD.toInt(), 0xFF16A085.toInt(), 0xFFD35400.toInt(),
+            0xFF2980B9.toInt(), 0xFF27AE60.toInt(), 0xFFC0392B.toInt(),
+            0xFF7F8C8D.toInt(), 0xFF5D6D7E.toInt(), 0xFF6C3483.toInt()
+        )
 
-        override fun onCreate() {
-            loadCachedData()
-        }
+        override fun onCreate() {}
+        override fun onDestroy() {}
 
         override fun onDataSetChanged() {
             try {
-                iconMemoryCache.clear()
-                loadCachedData()
+                val prefs = PreferencesManager.getInstance(context)
+                val data = prefs.cachedPanelData
+
+                // 展开所有分组的书签为扁平列表
+                allBookmarks = if (data != null) {
+                    data.groups.flatMap { group -> group.bookmarks }
+                } else {
+                    emptyList()
+                }
+                Log.d(TAG, "onDataSetChanged: 加载了 ${allBookmarks.size} 个书签")
             } catch (e: Exception) {
-                android.util.Log.e("SunPanelWidget", "RemoteViewsFactory.onDataSetChanged 异常", e)
+                Log.e(TAG, "onDataSetChanged 失败", e)
+                allBookmarks = emptyList()
             }
         }
 
-        override fun onDestroy() {
-            iconMemoryCache.clear()
-        }
+        override fun getCount(): Int = allBookmarks.size
 
-        /**
-         * 从 SharedPreferences 读取缓存数据，转换为展平列表
-         */
-        private fun loadCachedData() {
-            displayItems.clear()
-            val data = PreferencesManager.getInstance(context).cachedPanelData
-            if (data != null) {
-                displayItems.addAll(data.toWidgetDisplayList())
-            }
-        }
-
-        // ========== 行类型 ==========
-
-        override fun getViewTypeCount(): Int = VIEW_TYPE_COUNT
-
-        // 注意：RemoteViewsFactory 没有 getItemViewType()！
-        // 多视图类型通过 getViewAt() 返回不同布局实现，
-        // Launcher 会根据 RemoteViews 的 layoutId 自动区分。
-
-        // ========== 数据数量 ==========
-
-        override fun getCount(): Int = displayItems.size
-
-        // ========== 渲染每行 ==========
+        override fun getViewTypeCount(): Int = 1
 
         override fun getViewAt(position: Int): RemoteViews {
-            return try {
-                val item = displayItems.getOrNull(position) ?: return RemoteViews(
-                    context.packageName, R.layout.widget_bookmark_item
-                )
-                when (item) {
-                    is WidgetDisplayItem.Header -> renderHeader(item)
-                    is WidgetDisplayItem.Bookmark -> renderBookmark(item, position)
+            try {
+                if (position < 0 || position >= allBookmarks.size) {
+                    return RemoteViews(context.packageName, R.layout.widget_item)
                 }
-            } catch (e: Exception) {
-                // 异常保护：单个 item 渲染失败不拖垮整个列表
-                android.util.Log.e("SunPanelWidget", "getViewAt($position) 异常", e)
-                RemoteViews(context.packageName, R.layout.widget_bookmark_item).apply {
-                    setTextViewText(R.id.widgetItemTitle, "加载失败")
+
+                val info = allBookmarks[position]
+                val views = RemoteViews(context.packageName, R.layout.widget_item)
+
+                // 标题
+                val title = info.title.ifBlank { "未命名" }
+                views.setTextViewText(R.id.widgetItemTitle, title)
+
+                // 字母色块图标（无 Bitmap）
+                val letter = title.first().uppercaseChar().toString()
+                val bgColor = tryParseColor(info.icon?.backgroundColor) ?: generateColor(title)
+                views.setTextViewText(R.id.widgetItemIcon, letter)
+                views.setInt(R.id.widgetItemIcon, "setBackgroundColor", bgColor)
+
+                // ⭐ 真实 URL → 塞入 fill-in 的 data URI
+                // 系统合并时，FILL_IN_DATA 会覆盖模板的占位 URL，最终 startActivity(ACTION_VIEW + 真实URL)
+                val targetUrl = when {
+                    !info.url.isNullOrBlank() -> info.url
+                    !info.lanUrl.isNullOrBlank() -> info.lanUrl
+                    else -> ""
                 }
-            }
-        }
-
-        /**
-         * 渲染分组标题行
-         *
-         * ⚠️ 关键：不能设置 setOnClickFillInIntent！
-         * 若设置了（即使是空 Intent），点击标题行也会触发 ListView 的
-         * PendingIntent 模板，导致整个组件产生点击反馈。
-         * 但 root 必须 clickable=true 来消费点击事件，
-         * 防止点击穿透到 ListView 层。
-         */
-        private fun renderHeader(header: WidgetDisplayItem.Header): RemoteViews {
-            val views = RemoteViews(context.packageName, R.layout.widget_header_item)
-            views.setTextViewText(R.id.widgetHeaderTitle, header.groupName)
-            return views
-        }
-
-        /**
-         * 渲染书签行
-         *
-         * ⚠️ 点击机制：必须用 setOnClickFillInIntent + setPendingIntentTemplate！
-         *    Android 框架要求：ListView/GridView 子项只能通过 fill-in 机制响应点击，
-         *    setOnClickPendingIntent 对集合子项会被框架直接忽略。
-         *
-         * ⚠️ 关键点：URL 双重携带
-         *    1. fill-in 的 data URI ← Intent.fillIn(FILL_IN_DATA) 合并，最可靠
-         *    2. fill-in 的 EXTRA_URL  ← extras 合并（部分 ROM 可能不稳）
-         */
-        private fun renderBookmark(bookmark: WidgetDisplayItem.Bookmark, position: Int): RemoteViews {
-            val views = RemoteViews(context.packageName, R.layout.widget_bookmark_item)
-            val info = bookmark.item
-
-            // 1. 标题
-            views.setTextViewText(R.id.widgetItemTitle, info.title.ifBlank { "未命名" })
-
-            // 2. 描述
-            if (!info.description.isNullOrBlank()) {
-                views.setTextViewText(R.id.widgetItemDesc, info.description)
-                views.setViewVisibility(R.id.widgetItemDesc, View.VISIBLE)
-            } else {
-                // 无描述时显示 URL 作为辅助
-                val displayUrl = if (info.url.isNotBlank()) {
-                    info.url.removePrefix("https://").removePrefix("http://").take(40)
+                val httpUrl = if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
+                    targetUrl
+                } else if (targetUrl.isNotBlank()) {
+                    "https://$targetUrl"
                 } else ""
-                if (displayUrl.isNotBlank()) {
-                    views.setTextViewText(R.id.widgetItemDesc, displayUrl)
-                    views.setViewVisibility(R.id.widgetItemDesc, View.VISIBLE)
-                } else {
-                    views.setViewVisibility(R.id.widgetItemDesc, View.GONE)
-                }
-            }
 
-            // 3. 图标 — 纯文字首字母，保证流畅
-            val iconBitmap = createTextIcon(
-                info.title,
-                info.icon?.backgroundColor
-            )
-            if (iconBitmap != null) {
-                views.setImageViewBitmap(R.id.widgetItemIcon, iconBitmap)
-            } else {
-                views.setImageViewResource(R.id.widgetItemIcon, R.drawable.ic_placeholder)
-            }
-
-            // 4. URL 兜底：url 为空时尝试 lanUrl
-            val targetUrl = when {
-                !info.url.isNullOrBlank() -> info.url
-                !info.lanUrl.isNullOrBlank() -> info.lanUrl
-                else -> ""
-            }
-            // 保证 URL 以 http(s):// 开头，作为合法 data URI
-            val httpUrl = if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
-                targetUrl
-            } else {
-                "https://$targetUrl"
-            }
-
-            // 5. FillInIntent：URL 同时放 data URI + extras（双保险）
-            val fillInIntent = Intent().apply {
                 if (httpUrl.isNotBlank()) {
-                    data = Uri.parse(httpUrl)
-                    putExtra(SunPanelWidgetProvider.EXTRA_URL, httpUrl)
+                    // ⭐ 终极方案：fill-in 只传 extras（click_url），不改 Action / Data
+                    // 模板是显式广播（ACTION_CLICK），fill-in 合并后到达
+                    // SunPanelWidgetProvider.onReceive → startActivity 打开浏览器
+                    val fillInIntent = Intent().apply {
+                        putExtra("click_url", httpUrl)
+                    }
+                    views.setOnClickFillInIntent(R.id.widgetItemRoot, fillInIntent)
+                    views.setOnClickFillInIntent(R.id.widgetItemIcon, fillInIntent)
+                    views.setOnClickFillInIntent(R.id.widgetItemTitle, fillInIntent)
                 }
+
+                return views
+            } catch (e: Exception) {
+                Log.e(TAG, "getViewAt($position) 失败", e)
+                return RemoteViews(context.packageName, R.layout.widget_item)
             }
-            views.setOnClickFillInIntent(R.id.widgetItemRoot, fillInIntent)
-            views.setOnClickFillInIntent(R.id.widgetItemIcon, fillInIntent)
-            views.setOnClickFillInIntent(R.id.widgetItemTitle, fillInIntent)
-
-            android.util.Log.d("SunPanelWidget", "renderBookmark: title=${info.title} url=$httpUrl pos=$position")
-
-            return views
         }
-
-        // ========== 图标生成 ==========
-
-        /**
-         * 生成首字母文字图标 Bitmap（内存缓存，无网络请求）
-         */
-        private fun createTextIcon(title: String, backgroundColor: String?): Bitmap? {
-            val letter = title.trim().take(1).ifBlank { "?" }.uppercase()
-            val cacheKey = "$letter|$backgroundColor"
-
-            // 内存缓存
-            iconMemoryCache[cacheKey]?.let { return it }
-
-            val bgColor = parseColor(backgroundColor) ?: getColorForLetter(letter)
-            val size = 88
-
-            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
-
-            // 圆角背景
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = bgColor
-            }
-            canvas.drawRoundRect(
-                RectF(0f, 0f, size.toFloat(), size.toFloat()),
-                20f, 20f, paint
-            )
-
-            // 白色首字母
-            paint.apply {
-                color = Color.WHITE
-                textSize = 40f
-                textAlign = Paint.Align.CENTER
-                isFakeBoldText = true
-            }
-            val baseline = size / 2f + (paint.descent() - paint.ascent()) / 2f - paint.descent()
-            canvas.drawText(letter, size / 2f, baseline, paint)
-
-            iconMemoryCache[cacheKey] = bitmap
-            return bitmap
-        }
-
-        /** 根据首字母生成稳定颜色 */
-        private fun getColorForLetter(letter: String): Int {
-            val colors = listOf(
-                0xFF5B86E5.toInt(), 0xFF36D1DC.toInt(), 0xFFFF6B6B.toInt(),
-                0xFFF093FB.toInt(), 0xFF4FACFE.toInt(), 0xFF43E97B.toInt(),
-                0xFFFA709A.toInt(), 0xFF30CFD0.toInt(), 0xFFA18CD1.toInt(),
-                0xFFFBC2EB.toInt(), 0xFF84FAB0.toInt(), 0xFF8FD3F4.toInt(),
-                0xFFD4FC79.toInt(), 0xFF96E6A1.toInt(), 0xFFDDA0DD.toInt(),
-                0xFFA8E6CF.toInt(), 0xFFFFD3B6.toInt(), 0xFFAEC6CF.toInt()
-            )
-            val idx = kotlin.math.abs(letter.hashCode()) % colors.size
-            return colors[idx]
-        }
-
-        private fun parseColor(colorStr: String?): Int? {
-            if (colorStr.isNullOrBlank()) return null
-            return try {
-                Color.parseColor(colorStr)
-            } catch (e: Exception) { null }
-        }
-
-        // ========== 其他必须实现的方法 ==========
 
         override fun getLoadingView(): RemoteViews? = null
         override fun getItemId(position: Int): Long = position.toLong()
-        override fun hasStableIds(): Boolean = true
+        override fun hasStableIds(): Boolean = false
+
+        // ========== 颜色工具 ==========
+
+        private fun tryParseColor(color: String?): Int? {
+            if (color.isNullOrBlank()) return null
+            return try { Color.parseColor(color) } catch (_: Exception) { null }
+        }
+
+        private fun generateColor(key: String): Int {
+            val hash = key.hashCode()
+            return colorPool[Math.abs(hash) % colorPool.size]
+        }
     }
 }
