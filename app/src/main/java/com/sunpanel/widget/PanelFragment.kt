@@ -11,6 +11,8 @@ import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.content.Intent
+import android.net.Uri
 import androidx.fragment.app.Fragment
 import com.sunpanel.widget.data.PreferencesManager
 import com.sunpanel.widget.databinding.FragmentPanelBinding
@@ -78,8 +80,12 @@ class PanelFragment : Fragment() {
                     view: WebView?,
                     request: android.webkit.WebResourceRequest?
                 ): Boolean {
-                    // 所有链接在 WebView 内部打开，保持历史栈，支持返回
-                    return false
+                    val url = request?.url?.toString() ?: return false
+                    // 站内链接（同一域名）：在 WebView 内打开，保持返回栈
+                    if (isSameSiteUrl(url)) return false
+                    // 站外链接（其他网站）：交给系统浏览器打开，禁止在本页面跳走
+                    openInSystemBrowser(url)
+                    return true
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
@@ -222,6 +228,30 @@ class PanelFragment : Fragment() {
             true
         } else {
             false
+        }
+    }
+
+    /** 判断 URL 是否与服务器设置同站点（同一域名） */
+    private fun isSameSiteUrl(url: String): Boolean {
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return false
+        val serverHost = try {
+            Uri.parse(prefs.serverUrl.trimEnd('/')).host ?: return false
+        } catch (_: Exception) { return false }
+        val linkHost = try {
+            Uri.parse(url).host ?: return false
+        } catch (_: Exception) { return false }
+        return linkHost == serverHost
+    }
+
+    /** 用系统浏览器打开外部链接 */
+    private fun openInSystemBrowser(url: String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+        } catch (_: Exception) {
+            Log.w(TAG, "无法打开外部链接: $url")
         }
     }
 
