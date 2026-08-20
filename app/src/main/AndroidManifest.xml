@@ -63,12 +63,14 @@
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <!-- 分享收藏：从浏览器等 App 接收分享，收藏到 Sun-Panel
-             透明主题：静默模式完全不可见 -->
+             透明主题：静默模式完全不可见
+             taskAffinity 独立任务：收藏完成后 finishAndRemoveTask，直接回到浏览器，不显示本 App 主界面 -->
         <activity
             android:name=".AddBookmarkActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:excludeFromRecents="true"
+            android:taskAffinity="com.sunpanel.widget.bookmark"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:label="收藏到 SunPanel">
             <intent-filter>

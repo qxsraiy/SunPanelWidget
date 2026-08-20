@@ -550,12 +550,12 @@ class SettingsFragment : Fragment() {
                 if (oa.code == 0 && oa.data != null) groups = oa.data.list.map { it.toItemIconGroup() }
             }
         } catch (e: Exception) {
-            tvStatus.text = "❌ 获取分组失败"
+            if (isAdded) tvStatus.text = "❌ 获取分组失败"
             return
         }
-        if (groups.isEmpty()) { tvStatus.text = "⚠️ 未获取到分组"; return }
+        if (groups.isEmpty()) { if (isAdded) tvStatus.text = "⚠️ 未获取到分组"; return }
 
-        tvStatus.text = "正在拉取 ${groups.size} 个分组书签..."
+        if (isAdded) tvStatus.text = "正在拉取 ${groups.size} 个分组书签..."
         val cachedGroups = mutableListOf<CachedGroupData>()
         var fail = 0
         for (group in groups) {
@@ -566,11 +566,13 @@ class SettingsFragment : Fragment() {
             } catch (_: Exception) { fail++; cachedGroups.add(CachedGroupData(group, emptyList())) }
         }
         val total = cachedGroups.sumOf { it.bookmarks.size }
-        tvStatus.text = if (fail > 0) "⚠️ $fail 个分组失败，共 $total 个书签"
-        else "✅ 同步完成！$total 个书签"
+        if (isAdded) {
+            tvStatus.text = if (fail > 0) "⚠️ $fail 个分组失败，共 $total 个书签"
+            else "✅ 同步完成！$total 个书签"
+        }
         prefs.cachedPanelData = CachedPanelData(cachedGroups)
         refreshWidget()
-        toast("配置已保存，请刷新桌面小部件")
+        if (isAdded) toast("同步完成：$total 个书签")
         (activity as? MainActivity)?.refreshPanel()
     }
 
@@ -619,6 +621,7 @@ class SettingsFragment : Fragment() {
     }
 
     private fun toast(msg: String) {
+        if (!isAdded) return
         android.widget.Toast.makeText(requireContext(), msg, android.widget.Toast.LENGTH_SHORT).show()
     }
 

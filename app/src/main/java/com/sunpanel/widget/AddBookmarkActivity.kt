@@ -39,6 +39,11 @@ class AddBookmarkActivity : ComponentActivity() {
         // 解析分享数据
         parseShareIntent()
 
+        // ⭐ 静默模式：已有默认分组 + 标题 + URL 齐全 → 后台直接保存，完全不显示 UI
+        if (trySilentSave()) {
+            return
+        }
+
         // 显示表单（透明主题下显式设置不透明背景）
         window.setBackgroundDrawable(
             android.graphics.drawable.ColorDrawable(android.graphics.Color.parseColor("#F2F3F5"))
@@ -57,11 +62,69 @@ class AddBookmarkActivity : ComponentActivity() {
         findViewById<Button>(R.id.btnSave).setOnClickListener { saveBookmark() }
     }
 
+    /**
+     * 静默收藏：有默认分组即可直接保存，无 Form、无界面、无感知
+     * @return true 表示已静默保存并结束，false 表示需要展示表单
+     */
+    private fun trySilentSave(): Boolean {
+        val url = extractedUrl
+        val title = intent?.getStringExtra(Intent.EXTRA_SUBJECT) ?: extractTitle(getShareText())
+        val defaultGroupId = prefs.lastUsedGroupId
+
+        if (prefs.serverUrl.isBlank() || prefs.apiToken.isBlank()) return false
+        if (defaultGroupId <= 0) return false
+        if (url.isBlank() || !url.startsWith("http")) return false
+        val safeTitle = title.ifBlank { extractHost(url) }
+        if (safeTitle.isBlank()) return false
+
+        // 后台保存，完全不显示 UI
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val api = SunPanelApi.getService(prefs.serverUrl, prefs.apiToken)
+                val body = mutableMapOf<String, Any>(
+                    "title" to safeTitle,
+                    "url" to url,
+                    "itemGroupID" to defaultGroupId
+                )
+                val resp = api.createBookmark(body)
+                if (resp.code == 0) {
+                    val newBookmark = ItemIconInfo(
+                        title = safeTitle,
+                        url = url,
+                        description = null,
+                        icon = null,
+                        itemIconGroupId = defaultGroupId
+                    )
+                    addToCacheAndRefresh(newBookmark, defaultGroupId)
+                    Log.d("SunPanelWidget", "静默收藏成功: $safeTitle")
+                } else {
+                    Log.e("SunPanelWidget", "静默收藏失败: ${resp.msg}")
+                }
+            } catch (e: Exception) {
+                Log.e("SunPanelWidget", "静默收藏网络异常", e)
+            }
+            withContext(Dispatchers.Main) {
+                finishAndRemoveTask()
+            }
+        }
+        return true
+    }
+
+    private fun extractHost(url: String): String {
+        return try {
+            java.net.URI.create(url).host ?: url
+        } catch (_: Exception) { url }
+    }
+
     /** 处理 singleTask 复用 */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         parseShareIntent()
+
+        // 再次尝试静默保存
+        if (trySilentSave()) return
+
         // 刷新表单
         val title = intent?.getStringExtra(Intent.EXTRA_SUBJECT) ?: extractTitle(getShareText())
         findViewById<EditText>(R.id.etTitle).setText(title)
@@ -124,6 +187,7 @@ class AddBookmarkActivity : ComponentActivity() {
                 val resp = api.getGroupsOpenApi()
                 if (resp.code == 0) {
                     val groups = resp.data?.list ?: emptyList()
+                    val lastUsedId = prefs.lastUsedGroupId
                     withContext(Dispatchers.Main) {
                         groupIds = groups.map { it.itemGroupID }.toMutableList()
                         val names = groups.map { it.title }
@@ -131,6 +195,11 @@ class AddBookmarkActivity : ComponentActivity() {
                             android.R.layout.simple_spinner_item, names)
                         adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
                         groupSpinner.adapter = adapter
+                        // 预选上次使用的分组
+                        val lastIndex = groupIds.indexOf(lastUsedId)
+                        if (lastIndex >= 0) {
+                            groupSpinner.setSelection(lastIndex)
+                        }
                     }
                 }
             } catch (_: Exception) {}
@@ -175,6 +244,10 @@ class AddBookmarkActivity : ComponentActivity() {
 
                 val resp = api.createBookmark(body)
                 if (resp.code == 0) {
+                    // 记住分组，下次分享预选
+                    prefs.lastUsedGroupId = selectedGroupId
+                    prefs.lastUsedGroupName = groupSpinner.selectedItem?.toString() ?: ""
+
                     // 直接更新本地缓存（零网络，瞬间完成）
                     val newBookmark = ItemIconInfo(
                         title = title,
@@ -198,7 +271,7 @@ class AddBookmarkActivity : ComponentActivity() {
                 }
             }
             withContext(Dispatchers.Main) {
-                finish()
+                finishAndRemoveTask()  // 彻底结束任务，回到浏览器
             }
         }
     }
