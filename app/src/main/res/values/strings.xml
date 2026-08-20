@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SunPanel 桌面</string>
+    <string name="widget_name">SunPanel 书签</string>
+    <string name="widget_description">在桌面直接展示 Sun-Panel 导航书签</string>
+    <string name="widget_empty">请先在 App 中配置 Sun-Panel 服务器</string>
+    <string name="widget_icon">书签图标</string>
+
+    <string name="settings_subtitle">配置 Sun-Panel 服务器，在桌面直接访问书签</string>
+    <string name="settings_not_configured">⏳ 尚未配置，请填写下方信息并保存</string>
+    <string name="settings_server_url">服务器地址</string>
+    <string name="settings_username">账号</string>
+    <string name="settings_password">密码</string>
+    <string name="settings_api_token_hint">API Token（管理后台 OpenAPI 应用获取，用于添加/编辑书签）</string>
+    <string name="settings_api_token_hint_warning">💡 API Token 用于后续添加/编辑书签（写操作）。
+当前小部件读取书签用下方账号密码登录。两个都填，功能才完整。</string>
+    <string name="settings_save">保存并同步</string>
+    <string name="settings_refresh_widget">刷新桌面小部件</string>
+    <string name="settings_use_chrome">打开方式：使用 Chrome 浏览器</string>
+    <string name="settings_use_chrome_hint">默认使用系统默认浏览器；勾选后强制使用 Chrome（未安装则自动回退）</string>
+    <string name="settings_usage_guide">
+        使用说明：
+        1. 填写 Sun-Panel 服务器地址（如 http://192.168.1.100:3002）
+        2. 输入管理账号和密码（推荐）
+           —— 或者直接粘贴管理后台「OpenAPI 应用」生成的 API Token
+        3. 点击"保存并同步"，自动获取书签数据
+        4. 返回桌面，长按空白处 → 添加小部件 → 选择 "SunPanel 书签"
+        5. 将小部件拖到合适位置，尽量占满一页
+        6. 点击任意书签图标即可直接打开网站
+
+        打开方式：
+        · 不勾选 Chrome：使用系统默认浏览器（未设置默认时弹出选择器）
+        · 勾选 Chrome：强制使用 Chrome（未安装则自动回退默认浏览器）
+
+        提示：数据会自动每小时刷新一次。
+        如需手动刷新，打开本 App 点击"刷新桌面小部件"。
+    </string>
+</resources>

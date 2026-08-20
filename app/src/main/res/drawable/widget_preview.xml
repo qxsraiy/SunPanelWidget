@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小部件预览图（在添加小部件列表时显示） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="250dp"
+    android:height="250dp"
+    android:viewportWidth="250"
+    android:viewportHeight="250">
+    <!-- 背景 -->
+    <path
+        android:pathData="M0,0 L250,0 L250,250 L0,250 Z"
+        android:fillColor="#FF1A1A2E" />
+    <!-- 标题 -->
+    <path
+        android:pathData="M20,22 L120,22 A2,2 0 0 1 122,24 L122,40 A2,2 0 0 1 120,42 L20,42 A2,2 0 0 1 18,40 L18,24 A2,2 0 0 1 20,22 Z"
+        android:fillColor="#FF3B82F6" />
+    <path
+        android:pathData="M35,30 L105,30"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
+    <!-- 模拟书签网格 5x3 -->
+    <!-- 第1行 -->
+    <path
+        android:pathData="M22,62 L68,62 A6,6 0 0 1 74,68 L74,114 A6,6 0 0 1 68,120 L22,120 A6,6 0 0 1 16,114 L16,68 A6,6 0 0 1 22,62 Z"
+        android:fillColor="#FF343A40" />
+    <path
+        android:pathData="M45,82 A12,12 0 1 1 45,81.9"
+        android:strokeColor="#FF3B82F6"
+        android:strokeWidth="6" />
+    <path
+        android:pathData="M45,96 L45,92"
+        android:strokeColor="#FF3B82F6"
+        android:strokeWidth="6"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M45,100 L45,108"
+        android:strokeColor="#FF3B82F6"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M30,98 L45,98 M45,98 L60,98"
+        android:strokeColor="#FF3B82F6"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+    
+    <!-- 第2个 -->
+    <path
+        android:pathData="M88,62 L134,62 A6,6 0 0 1 140,68 L140,114 A6,6 0 0 1 134,120 L88,120 A6,6 0 0 1 82,114 L82,68 A6,6 0 0 1 88,62 Z"
+        android:fillColor="#FF343A40" />
+    <path
+        android:pathData="M111,82 A12,12 0 1 1 111,81.9"
+        android:strokeColor="#FF10B981"
+        android:strokeWidth="6" />
+    <path
+        android:pathData="M111,96 L111,92"
+        android:strokeColor="#FF10B981"
+        android:strokeWidth="6"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M111,100 L111,108"
+        android:strokeColor="#FF10B981"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M96,98 L111,98 M111,98 L126,98"
+        android:strokeColor="#FF10B981"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+
+    <!-- 第3个 -->
+    <path
+        android:pathData="M154,62 L200,62 A6,6 0 0 1 206,68 L206,114 A6,6 0 0 1 200,120 L154,120 A6,6 0 0 1 148,114 L148,68 A6,6 0 0 1 154,62 Z"
+        android:fillColor="#FF343A40" />
+    <path
+        android:pathData="M177,82 A12,12 0 1 1 177,81.9"
+        android:strokeColor="#FFF59E0B"
+        android:strokeWidth="6" />
+    <path
+        android:pathData="M177,96 L177,92"
+        android:strokeColor="#FFF59E0B"
+        android:strokeWidth="6"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M177,100 L177,108"
+        android:strokeColor="#FFF59E0B"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M162,98 L177,98 M177,98 L192,98"
+        android:strokeColor="#FFF59E0B"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+
+    <!-- 第2行 -->
+    <path
+        android:pathData="M22,135 L68,135 A6,6 0 0 1 74,141 L74,187 A6,6 0 0 1 68,193 L22,193 A6,6 0 0 1 16,187 L16,141 A6,6 0 0 1 22,135 Z"
+        android:fillColor="#FF343A40" />
+    <path
+        android:pathData="M45,155 A12,12 0 1 1 45,154.9"
+        android:strokeColor="#FFEF4444"
+        android:strokeWidth="6" />
+    <path
+        android:pathData="M45,169 L45,165"
+        android:strokeColor="#FFEF4444"
+        android:strokeWidth="6"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M45,173 L45,181"
+        android:strokeColor="#FFEF4444"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M30,171 L45,171 M45,171 L60,171"
+        android:strokeColor="#FFEF4444"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+        
+    <!-- 第2行第2个 -->
+    <path
+        android:pathData="M88,135 L134,135 A6,6 0 0 1 140,141 L140,187 A6,6 0 0 1 134,193 L88,193 A6,6 0 0 1 82,187 L82,141 A6,6 0 0 1 88,135 Z"
+        android:fillColor="#FF343A40" />
+    <path
+        android:pathData="M111,155 A12,12 0 1 1 111,154.9"
+        android:strokeColor="#FF8B5CF6"
+        android:strokeWidth="6" />
+    <path
+        android:pathData="M111,169 L111,165"
+        android:strokeColor="#FF8B5CF6"
+        android:strokeWidth="6"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M111,173 L111,181"
+        android:strokeColor="#FF8B5CF6"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M96,171 L111,171 M111,171 L126,171"
+        android:strokeColor="#FF8B5CF6"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+
+    <!-- 第2行第3个 -->
+    <path
+        android:pathData="M154,135 L200,135 A6,6 0 0 1 206,141 L206,187 A6,6 0 0 1 200,193 L154,193 A6,6 0 0 1 148,187 L148,141 A6,6 0 0 1 154,135 Z"
+        android:fillColor="#FF343A40" />
+    <path
+        android:pathData="M177,155 A12,12 0 1 1 177,154.9"
+        android:strokeColor="#FF06B6D4"
+        android:strokeWidth="6" />
+    <path
+        android:pathData="M177,169 L177,165"
+        android:strokeColor="#FF06B6D4"
+        android:strokeWidth="6"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M177,173 L177,181"
+        android:strokeColor="#FF06B6D4"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M162,171 L177,171 M177,171 L192,171"
+        android:strokeColor="#FF06B6D4"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+
+    <!-- 第3行（略，只显示两行半暗示可滑动） -->
+    
+    <!-- 底部提示文字 -->
+    <path
+        android:pathData="M90,215 L160,215"
+        android:strokeColor="#FF5A5A7A"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M92,223 L158,223"
+        android:strokeColor="#FF4A4A6A"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M100,228 L150,228"
+        android:strokeColor="#FF3A3A5A"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+</vector>

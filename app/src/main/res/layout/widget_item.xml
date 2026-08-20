@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 单个书签格子布局 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widgetItemRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:padding="4dp">
+
+    <!-- 图标 -->
+    <ImageView
+        android:id="@+id/widgetItemIcon"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:contentDescription="@string/widget_icon"
+        android:scaleType="fitCenter" />
+
+    <!-- 标题 -->
+    <TextView
+        android:id="@+id/widgetItemTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:ellipsize="end"
+        android:lines="1"
+        android:textColor="#FFFFFF"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <!-- 描述（可选） -->
+    <TextView
+        android:id="@+id/widgetItemDesc"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:lines="1"
+        android:textColor="#8AFFFFFF"
+        android:textSize="10sp" />
+</LinearLayout>

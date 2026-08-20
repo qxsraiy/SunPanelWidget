@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 默认书签占位图标 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+
+    <!-- 深色圆角背景 -->
+    <path
+        android:pathData="M24,8 L72,8 A16,16 0 0 1 88,24 L88,72 A16,16 0 0 1 72,88 L24,88 A16,16 0 0 1 8,72 L8,24 A16,16 0 0 1 24,8 Z"
+        android:fillColor="#343A40" />
+
+    <!-- 链接/书签图形 -->
+    <path
+        android:pathData="M38,58 L52,44 M58,38 L44,52"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M52,44 A10,10 0 0 1 50,32 L56,26 A10,10 0 0 1 70,40 L66,44"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M44,52 A10,10 0 0 1 46,64 L40,70 A10,10 0 0 1 26,56 L30,52"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+</vector>
