@@ -44,11 +44,7 @@
                 android:resource="@xml/sunpanel_widget_info" />
         </receiver>
 
-        <!-- 远程视图服务：为小部件的 GridView 提供数据 -->
-        <service
-            android:name=".SunPanelRemoteViewsService"
-            android:exported="false"
-            android:permission="android.permission.BIND_REMOTEVIEWS" />
+        <!-- 注：SunPanelRemoteViewsService 已不再使用（旧版 ListView 方案），保留文件供参考 -->
 
     </application>
 
