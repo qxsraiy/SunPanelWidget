@@ -2,9 +2,7 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widgetItemRoot"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:clickable="true"
-    android:focusable="true">
+    android:layout_height="wrap_content">
 
     <!-- ⭐ 修复：把原本的 <View> 改成 <ImageView> 或者是无内容的 <FrameLayout> -->
     <FrameLayout

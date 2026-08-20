@@ -24,6 +24,12 @@ import com.sunpanel.widget.data.toWidgetDisplayList
 @Suppress("DEPRECATION")
 class SunPanelRemoteViewsService : RemoteViewsService() {
 
+    // ⭐⭐ 静态缓存：透明代理按 position 查 URL（第三重兜底）⭐⭐
+    companion object {
+        /** 由 RemoteViewsFactory.onDataSetChanged() 填充 */
+        @JvmStatic var sUrlCache: List<String> = emptyList()
+    }
+
     override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
         return SunPanelRemoteViewsFactory(applicationContext, intent)
     }
@@ -68,7 +74,23 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
 
                 val data = prefs.cachedPanelData
                 displayItems = data?.toWidgetDisplayList() ?: emptyList()
-                Log.d(TAG, "onDataSetChanged: 加载了 ${displayItems.size} 项")
+
+                // ⭐ 填充 URL 静态缓存（透明代理第三重兑底按 position 查）
+                sUrlCache = displayItems.mapNotNull { item ->
+                    if (item is WidgetDisplayItem.Bookmark) {
+                        val info = item.item
+                        val target = when {
+                            !info.url.isNullOrBlank() -> info.url
+                            !info.lanUrl.isNullOrBlank() -> info.lanUrl
+                            else -> ""
+                        }
+                        val httpUrl = if (target.startsWith("http://") || target.startsWith("https://")) target
+                        else if (target.isNotBlank()) "https://$target" else ""
+                        httpUrl.ifBlank { null }
+                    } else null
+                }
+
+                Log.d(TAG, "onDataSetChanged: 加载了 ${displayItems.size} 项, URL缓存 ${sUrlCache.size} 条")
             } catch (e: Exception) {
                 Log.e(TAG, "onDataSetChanged 失败", e)
                 displayItems = emptyList()
@@ -91,7 +113,7 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
 
                 when (item) {
                     is WidgetDisplayItem.Header -> renderHeader(views, item)
-                    is WidgetDisplayItem.Bookmark -> renderBookmark(views, item)
+                    is WidgetDisplayItem.Bookmark -> renderBookmark(views, item, position)
                 }
 
                 return views
@@ -114,7 +136,7 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
         }
 
         /** 书签卡片：色块图标 + 名称 + 备注 + fill-in 点击 */
-        private fun renderBookmark(views: RemoteViews, bookmark: WidgetDisplayItem.Bookmark) {
+        private fun renderBookmark(views: RemoteViews, bookmark: WidgetDisplayItem.Bookmark, position: Int) {
             val info = bookmark.item
 
             views.setViewVisibility(R.id.widgetItemIcon, View.VISIBLE)
@@ -158,6 +180,7 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
                 val fillInIntent = Intent().apply {
                     data = android.net.Uri.parse(httpUrl)   // FILL_IN_DATA 合并（更可靠）
                     putExtra("click_url", httpUrl)         // FILL_IN_EXTRAS 兜底
+                    putExtra("position", position)          // 第三重兜底：透明代理按 position 从 sUrlCache 查
                 }
                 views.setOnClickFillInIntent(R.id.widgetItemRoot, fillInIntent)
             } else {

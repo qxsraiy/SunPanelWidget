@@ -17,10 +17,9 @@ import com.sunpanel.widget.data.PreferencesManager
  * 桌面小部件 Provider
  *
  * 布局：GridView（可滑动网格，自动列数）
- * 点击：setPendingIntentTemplate(显式广播 ACTION_CLICK) + setOnClickFillInIntent(data+extras 双保险)
- *       → 系统合并后广播给自己 Provider → onReceive 中 startActivity 打开浏览器
- *       （Android 14+ 禁止 FLAG_MUTABLE + 隐式 Intent，因此用显式广播中转）
- *       （Android 14+ 后台启动 Activity 受限，onReceive 里用 ActivityOptions 豁免）
+ * 点击：setPendingIntentTemplate(getActivity 指向透明代理) + setOnClickFillInIntent(data+extras+position)
+ *       → 点击时直接启动 WidgetClickProxyActivity（前台合法交互，不受 Android 14+ 后台启动限制）
+ *       → 透明代理调起浏览器 → 瞬间关闭，用户无感知
  * 图标：文字字母（无 Bitmap）
  */
 @Suppress("DEPRECATION")
@@ -29,8 +28,6 @@ class SunPanelWidgetProvider : AppWidgetProvider() {
     companion object {
         private const val TAG = "SunPanelWidget"
         const val ACTION_REFRESH = "com.sunpanel.widget.action.REFRESH"
-        // 自定义点击广播 Action（显式广播，绕过 Android 14+ 隐式 Intent 安全限制）
-        const val ACTION_CLICK = "com.sunpanel.widget.action.CLICK"
     }
 
     override fun onUpdate(
@@ -74,12 +71,11 @@ class SunPanelWidgetProvider : AppWidgetProvider() {
             views.setRemoteAdapter(R.id.widgetGrid, serviceIntent)
             views.setEmptyView(R.id.widgetGrid, R.id.widgetEmptyView)
 
-            // ⭐ 终极方案（Android 14+ 兼容）：模板 = 发给自己 App 的【显式广播】
-            // 日志实证：Targeting U+ (version 34+) disallows creating a PendingIntent
-            // with FLAG_MUTABLE + implicit Intent。因此不能用隐式 ACTION_VIEW。
-            // 改为显式 Intent(本 Provider 类) + getBroadcast，完美绕过限制。
-            val templateIntent = Intent(context, SunPanelWidgetProvider::class.java).apply {
-                action = ACTION_CLICK
+            // ⭐ 终极方案：模板 = getActivity 指向透明代理 Activity
+            // 必须给模板加一个任意的 Action，否则底层合并时会丢弃子项的 url
+            val templateIntent = Intent(context, WidgetClickProxyActivity::class.java).apply {
+                // 随意指定一个 action，让系统知道这是一个"可以接纳填空"的意图
+                action = Intent.ACTION_VIEW
             }
 
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -88,14 +84,14 @@ class SunPanelWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT
             }
 
-            // 显式指向自己的 Provider，FLAG_MUTABLE 合法（非隐式 Intent）
-            val templatePendingIntent = PendingIntent.getBroadcast(
+            // 显式指向透明代理 Activity，FLAG_MUTABLE 合法（非隐式 Intent）
+            val templatePendingIntent = PendingIntent.getActivity(
                 context, appWidgetId, templateIntent, flags
             )
             views.setPendingIntentTemplate(R.id.widgetGrid, templatePendingIntent)
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
-            Log.d(TAG, "updateAppWidget: widgetId=$appWidgetId 已下发（模板=显式广播 ACTION_CLICK）")
+            Log.d(TAG, "updateAppWidget: widgetId=$appWidgetId 已下发（模板=透明代理 getActivity）")
         } catch (e: Exception) {
             Log.e(TAG, "updateAppWidget 失败: widgetId=$appWidgetId", e)
         }
@@ -104,63 +100,30 @@ class SunPanelWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
 
-        when (intent.action) {
-            ACTION_REFRESH -> {
-                try {
-                    val appWidgetManager = AppWidgetManager.getInstance(context)
-                    val componentName = ComponentName(context, SunPanelWidgetProvider::class.java)
-                    val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                    if (appWidgetIds.isEmpty()) {
-                        Log.d(TAG, "刷新广播：没有已添加的小部件")
-                        return
-                    }
-                    for (id in appWidgetIds) {
-                        updateAppWidget(context, appWidgetManager, id)
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetIds, R.id.widgetGrid)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        for (id in appWidgetIds) {
-                            appWidgetManager.notifyAppWidgetViewDataChanged(id, R.id.widgetGrid)
-                        }
-                    }
-                    Log.d(TAG, "刷新完成：${appWidgetIds.size} 个小部件")
-                } catch (e: Exception) {
-                    Log.e(TAG, "刷新广播处理失败", e)
+        // 仅处理刷新广播；点击已交给透明代理 WidgetClickProxyActivity 处理
+        if (intent.action == ACTION_REFRESH) {
+            try {
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                val componentName = ComponentName(context, SunPanelWidgetProvider::class.java)
+                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+                if (appWidgetIds.isEmpty()) {
+                    Log.d(TAG, "刷新广播：没有已添加的小部件")
+                    return
                 }
-            }
-
-            // ⭐ 处理点击广播：从 fill-in 的 data URI 或 extras 中读取 URL，打开浏览器
-            ACTION_CLICK -> {
-                // 优先从 data URI 取（FILL_IN_DATA 合并更可靠）
-                var url = intent.data?.toString()
-                // 备选从 extras 取（FILL_IN_EXTRAS 兜底）
-                if (url.isNullOrBlank()) {
-                    url = intent.getStringExtra("click_url")
+                for (id in appWidgetIds) {
+                    updateAppWidget(context, appWidgetManager, id)
                 }
-                Log.d(TAG, "ACTION_CLICK: url=$url")
-                if (!url.isNullOrBlank() && url.startsWith("http")) {
-                    try {
-                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        // ⭐ Android 14+ 后台启动 Activity 豁免参数
-                        if (Build.VERSION.SDK_INT >= 34) {
-                            val options = android.app.ActivityOptions.makeBasic()
-                            options.pendingIntentBackgroundActivityStartMode =
-                                android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
-                            context.startActivity(browserIntent, options.toBundle())
-                        } else {
-                            context.startActivity(browserIntent)
-                        }
-                        Log.d(TAG, "成功调起浏览器访问: $url")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "调起浏览器失败: $url", e)
-                    }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetIds, R.id.widgetGrid)
                 } else {
-                    Log.e(TAG, "ACTION_CLICK: URL 无效或为空")
+                    @Suppress("DEPRECATION")
+                    for (id in appWidgetIds) {
+                        appWidgetManager.notifyAppWidgetViewDataChanged(id, R.id.widgetGrid)
+                    }
                 }
+                Log.d(TAG, "刷新完成：${appWidgetIds.size} 个小部件")
+            } catch (e: Exception) {
+                Log.e(TAG, "刷新广播处理失败", e)
             }
         }
     }

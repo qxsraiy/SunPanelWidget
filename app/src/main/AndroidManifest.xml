@@ -50,6 +50,12 @@
             android:exported="true"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
 
+        <!-- ⭐ 新增：小部件点击透明代理（Android 14+ 后台启动 Activity 豁免） -->
+        <activity
+            android:name=".WidgetClickProxyActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
     </application>
 
 </manifest>
