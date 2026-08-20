@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -390,15 +391,111 @@ class SettingsFragment : Fragment() {
     private fun showRefreshDialog() {
         val dialog = AlertDialog.Builder(requireContext(), android.R.style.Theme_Material_Light_Dialog)
             .setTitle("刷新小组件")
-            .setMessage("将使用最新配置刷新桌面小组件，\n如果刚刚修改了颜色/透明度，请先保存再刷新。")
+            .setMessage("将重新拉取服务器数据（同步面板新增/删除/修改）后刷新小组件。\n需要已配置账号密码或 API Token")
             .setPositiveButton("立即刷新") { _, _ ->
-                refreshWidget()
-                toast("已发送刷新指令")
+                val tv = autoCreatedStatus()
+                performRefreshWithSync(tv)
             }
             .setNegativeButton("取消", null)
             .create()
         dialog.show()
         styleDialog(dialog)
+    }
+
+    /** 创建一个状态文字（用于日志定位，弹框内不展示） */
+    private fun autoCreatedStatus(): TextView {
+        return TextView(requireContext()).apply {
+            val t = if (prefs.isConfigured) "已配置" else "未配置"
+            Log.d("SunPanelWidget", "刷新同步开始（服务器: ${prefs.serverUrl.isNotBlank()}）")
+            text = t
+        }
+    }
+
+    /** 先重新拉取服务器数据，再刷新小部件 */
+    private fun performRefreshWithSync(tvStatus: TextView) {
+        val serverUrl = prefs.serverUrl
+        val token = prefs.token
+        val username = prefs.username
+        val password = prefs.password
+
+        if (serverUrl.isBlank()) {
+            toast("请先在账号登录中配置服务器地址")
+            return
+        }
+
+        lifecycleScope.launch {
+            try {
+                var authApi: com.sunpanel.widget.api.SunPanelApiService
+                if (token.isNotBlank()) {
+                    // 已有会话 token，直接重新拉取
+                    SunPanelApi.reset()
+                    authApi = SunPanelApi.getService(serverUrl, token)
+                } else if (username.isNotBlank() && password.isNotBlank()) {
+                    // 重新登录获取 token，再拉取
+                    tvStatus.text = "正在登录..."
+                    SunPanelApi.reset()
+                    val loginApi = SunPanelApi.getService(serverUrl, "")
+                    val loginResp = loginApi.login(LoginRequest(username, password))
+                    if (loginResp.code != 0 || loginResp.data == null) {
+                        toast("❌ 登录失败: ${loginResp.msg}")
+                        return@launch
+                    }
+                    prefs.token = loginResp.data.token
+                    SunPanelApi.reset()
+                    authApi = SunPanelApi.getService(serverUrl, prefs.token)
+                } else if (prefs.apiToken.isNotBlank()) {
+                    // 只有 API Token：能拉分组，书签可能拉不到
+                    SunPanelApi.reset()
+                    authApi = SunPanelApi.getService(serverUrl, prefs.apiToken)
+                } else {
+                    toast("请先在账号登录中填写账号密码或 API Token")
+                    return@launch
+                }
+
+                tvStatus.text = "正在拉取数据..."
+                validateAndCache(authApi, serverUrl, tvStatus)
+            } catch (e: Exception) {
+                Log.e("SunPanelWidget", "刷新同步异常", e)
+                toast("刷新异常: ${e.localizedMessage ?: "未知错误"}")
+            }
+        }
+    }
+
+    /** 拉取全部分组+书签并写缓存，然后刷新小部件 */
+    private suspend fun validateAndCache(
+        authApi: com.sunpanel.widget.api.SunPanelApiService,
+        serverUrl: String,
+        tvStatus: TextView
+    ) {
+        var groups = emptyList<com.sunpanel.widget.data.ItemIconGroup>()
+        try {
+            val grp = authApi.getGroups()
+            if (grp.code == 0 && grp.data != null) groups = grp.data.list
+            else {
+                val oa = authApi.getGroupsOpenApi()
+                if (oa.code == 0 && oa.data != null) groups = oa.data.list.map { it.toItemIconGroup() }
+            }
+        } catch (e: Exception) {
+            toast("❌ 获取分组失败: ${e.message}")
+            return
+        }
+        if (groups.isEmpty()) { toast("⚠️ 未获取到分组"); return }
+
+        tvStatus.text = "正在拉取分组书签..."
+        val cachedGroups = mutableListOf<CachedGroupData>()
+        var fail = 0
+        for (group in groups) {
+            try {
+                val bm = authApi.getBookmarksByGroup(GetListByGroupIdRequest(group.id))
+                val list = if (bm.code == 0 && bm.data != null) bm.data.list else { fail++; emptyList() }
+                cachedGroups.add(CachedGroupData(group, list))
+            } catch (_: Exception) { fail++; cachedGroups.add(CachedGroupData(group, emptyList())) }
+        }
+        val total = cachedGroups.sumOf { it.bookmarks.size }
+        prefs.cachedPanelData = CachedPanelData(cachedGroups)
+        refreshWidget()
+        if (fail > 0) toast("⚠️ $fail 个分组失败，共 $total 个书签已刷新")
+        else toast("✅ 同步完成！$total 个书签，已刷新")
     }
 
     // ========== 登录/同步逻辑 ==========

@@ -61,7 +61,7 @@ class PanelFragment : Fragment() {
             settings.setSupportZoom(true)
             settings.builtInZoomControls = true
             settings.displayZoomControls = false
-            settings.mediaPlaybackRequiresUserGesture = false
+            settings.setSupportMultipleWindows(false) // 禁止 target=_blank 开新窗口
 
             // 暴露一个 Java 接口给 JS 调用，用于从 App 获取账号密码
             addJavascriptInterface(object {
@@ -74,9 +74,18 @@ class PanelFragment : Fragment() {
             }, "SunPanelApp")
 
             webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(
+                    view: WebView?,
+                    request: android.webkit.WebResourceRequest?
+                ): Boolean {
+                    // 所有链接在 WebView 内部打开，保持历史栈，支持返回
+                    return false
+                }
+
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    binding.loadingLayout.visibility = View.GONE
+                    val b = _binding ?: return  // Fragment 已销毁，安全退出
+                    b.loadingLayout.visibility = View.GONE
                     Log.d(TAG, "面板加载完成: $url")
 
                     // 自动登录：检查是否已登录，未登录则自动登录
@@ -94,10 +103,11 @@ class PanelFragment : Fragment() {
 
             webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                    val b = _binding ?: return  // Fragment 已销毁，安全退出
                     if (newProgress < 100) {
-                        binding.loadingLayout.visibility = View.VISIBLE
+                        b.loadingLayout.visibility = View.VISIBLE
                     } else {
-                        binding.loadingLayout.visibility = View.GONE
+                        b.loadingLayout.visibility = View.GONE
                     }
                 }
             }
@@ -217,6 +227,15 @@ class PanelFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        // 安全销毁 WebView：先从视图树移除，再销毁，避免回调触发 NPE
+        try {
+            binding.webView.apply {
+                (parent as? ViewGroup)?.removeView(this)
+                stopLoading()
+                removeAllViews()
+                destroy()
+            }
+        } catch (_: Exception) {}
         _binding = null
     }
 }

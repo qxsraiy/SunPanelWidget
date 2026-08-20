@@ -111,7 +111,33 @@ class PreferencesManager(context: Context) {
             .coerceIn(0, 100)
         set(value) = prefs.edit().putInt(KEY_CARD_OPACITY, value.coerceIn(0, 100)).apply()
 
-    // === 小部件翻页页码（按widgetId存储） ===
+    // === 分享收藏：默认分组（上次使用的分组） ===
+
+    var lastUsedGroupId: Int
+        get() = prefs.getInt(KEY_LAST_GROUP_ID, 0)
+        set(value) = prefs.edit().putInt(KEY_LAST_GROUP_ID, value).apply()
+
+    var lastUsedGroupName: String
+        get() = prefs.getString(KEY_LAST_GROUP_NAME, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_LAST_GROUP_NAME, value).apply()
+
+    // 缓存的分组列表 JSON（分享收藏时免网络加载）
+    private var cachedGroupsJson: String
+        get() = prefs.getString(KEY_CACHED_GROUPS, "[]") ?: "[]"
+        set(value) = prefs.edit().putString(KEY_CACHED_GROUPS, value).apply()
+
+    data class CachedGroupItem(val id: Int, val name: String)
+
+    var cachedGroupList: List<CachedGroupItem>
+        get() {
+            val json = cachedGroupsJson
+            return try {
+                gson.fromJson(json, Array<CachedGroupItem>::class.java).toList()
+            } catch (_: Exception) { emptyList() }
+        }
+        set(value) {
+            cachedGroupsJson = gson.toJson(value)
+        }
 
     fun getWidgetPage(widgetId: Int): Int {
         return prefs.getInt("widget_page_$widgetId", 0)
@@ -138,6 +164,9 @@ class PreferencesManager(context: Context) {
         private const val KEY_USE_CHROME = "use_chrome"
         private const val KEY_CARD_COLOR = "card_color"
         private const val KEY_CARD_OPACITY = "card_opacity"
+        private const val KEY_LAST_GROUP_ID = "last_group_id"
+        private const val KEY_LAST_GROUP_NAME = "last_group_name"
+        private const val KEY_CACHED_GROUPS = "cached_groups"
 
         // 单例
         @Volatile

@@ -1,6 +1,7 @@
 package com.sunpanel.widget.api
 
 import com.sunpanel.widget.data.*
+import kotlin.jvm.JvmSuppressWildcards
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -62,11 +63,11 @@ interface SunPanelApiService {
 
     /** 创建新书签 */
     @POST("/openapi/v1/item/create")
-    suspend fun createBookmark(@Body body: Map<String, Any?>): ApiResponse<Any>
+    suspend fun createBookmark(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResponse<Any>
 
     /** 修改书签（v1.7.*+，不需要修改的参数无需传） */
     @POST("/openapi/v1/item/update")
-    suspend fun updateBookmark(@Body body: Map<String, Any?>): ApiResponse<Any>
+    suspend fun updateBookmark(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResponse<Any>
 
     /** 批量修改书签（v2.0.0-dev-13+） */
     @POST("/openapi/v1/item/batchUpdate")
