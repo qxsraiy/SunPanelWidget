@@ -74,13 +74,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** 返回键：面板 WebView 页内返回优先 */
-    override fun onBackPressed() {
-        val current = supportFragmentManager.findFragmentById(R.id.fragmentContainer)
-        if (current is PanelFragment) {
-            if (panelFragment?.onBackPressed() == true) {
-                return  // WebView 页内返回
+    private val backCallback = object : androidx.activity.OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+            val current = supportFragmentManager.findFragmentById(R.id.fragmentContainer)
+            if (current is PanelFragment) {
+                if (panelFragment?.onBackPressed() == true) {
+                    return  // WebView 页内返回
+                }
             }
+            isEnabled = false
+            onBackPressedDispatcher.onBackPressed()
+            isEnabled = true
         }
-        super.onBackPressed()
+    }
+
+    init {
+        onBackPressedDispatcher.addCallback(this, backCallback)
     }
 }

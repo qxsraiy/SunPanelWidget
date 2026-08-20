@@ -5,8 +5,10 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.text.InputType
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
@@ -16,7 +18,10 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import androidx.appcompat.widget.SwitchCompat
 import com.sunpanel.widget.api.SunPanelApi
+import com.sunpanel.widget.api.SunPanelApiService
+import androidx.core.graphics.toColorInt
 import com.sunpanel.widget.data.*
 import com.sunpanel.widget.databinding.FragmentSettingsBinding
 import kotlinx.coroutines.launch
@@ -64,7 +69,7 @@ class SettingsFragment : Fragment() {
         // 状态
         val tvStatus = TextView(context).apply {
             text = if (prefs.isConfigured) "已配置 ✅" else "未配置"
-            setTextColor(Color.parseColor("#6B7280"))
+            setTextColor("#6B7280".toColorInt())
             textSize = 13f
         }
         root.addView(tvStatus)
@@ -91,8 +96,8 @@ class SettingsFragment : Fragment() {
         val etPass = TextInputEditText(context).apply {
             setText(prefs.password)
             setSingleLine()
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or
-                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            inputType = InputType.TYPE_CLASS_TEXT or
+                    InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
         root.addView(wrapInput(context, etPass))
 
@@ -101,8 +106,8 @@ class SettingsFragment : Fragment() {
         val etApi = TextInputEditText(context).apply {
             setText(prefs.apiToken)
             setSingleLine()
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or
-                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            inputType = InputType.TYPE_CLASS_TEXT or
+                    InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
         root.addView(wrapInput(context, etApi))
 
@@ -118,9 +123,9 @@ class SettingsFragment : Fragment() {
         // 刷新状态
         val tvHint = TextView(context).apply {
             text = "点击「登录并同步」后自动保存配置并刷新小部件"
-            setTextColor(Color.parseColor("#9CA3AF"))
+            setTextColor("#9CA3AF".toColorInt())
             textSize = 11f
-            gravity = android.view.Gravity.CENTER
+            gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = 12.dpToPx(context) }
@@ -167,12 +172,12 @@ class SettingsFragment : Fragment() {
         val radioGroup = RadioGroup(context).apply { orientation = RadioGroup.VERTICAL }
         val radioDefault = RadioButton(context).apply {
             text = "默认浏览器"
-            id = 1
+            id = View.generateViewId()
             isChecked = prefs.browserMode == 0
         }
         val radioCustom = RadioButton(context).apply {
             text = "指定浏览器"
-            id = 2
+            id = View.generateViewId()
             isChecked = prefs.browserMode == 1
         }
         radioGroup.addView(radioDefault)
@@ -195,7 +200,7 @@ class SettingsFragment : Fragment() {
 
         val tvHint = TextView(context).apply {
             text = "未安装指定浏览器时自动回退到默认浏览器"
-            setTextColor(Color.parseColor("#9CA3AF"))
+            setTextColor("#9CA3AF".toColorInt())
             textSize = 12f
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -208,13 +213,13 @@ class SettingsFragment : Fragment() {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 1
             ).apply { topMargin = 16.dpToPx(context); bottomMargin = 16.dpToPx(context) }
-            setBackgroundColor(Color.parseColor("#E5E7EB"))
+            setBackgroundColor("#E5E7EB".toColorInt())
         }
         root.addView(sep)
 
         val overlayRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = android.view.Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -223,14 +228,14 @@ class SettingsFragment : Fragment() {
         val overlayLabel = TextView(context).apply {
             text = "悬浮窗无感启动"
             textSize = 15f
-            setTextColor(Color.parseColor("#1F2937"))
+            setTextColor("#1F2937".toColorInt())
             layoutParams = LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
             )
         }
         overlayRow.addView(overlayLabel)
 
-        val switchOverlay = Switch(context).apply {
+        val switchOverlay = SwitchCompat(context).apply {
             isChecked = WidgetClickProxyActivity.hasOverlayPermission(context)
         }
         overlayRow.addView(switchOverlay)
@@ -242,7 +247,7 @@ class SettingsFragment : Fragment() {
             else
                 "开启后将申请悬浮窗权限，点击小部件不再启动 Activity"
             textSize = 12f
-            setTextColor(Color.parseColor("#9CA3AF"))
+            setTextColor("#9CA3AF".toColorInt())
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -260,7 +265,7 @@ class SettingsFragment : Fragment() {
                 try {
                     WidgetClickProxyActivity.openOverlaySettings(context)
                     toast("请在弹出的设置中开启「显示悬浮窗」权限，然后返回")
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     toast("无法打开权限设置，请手动授权")
                 }
                 switchOverlay.isChecked = false
@@ -305,13 +310,13 @@ class SettingsFragment : Fragment() {
             )
         }
         // 设置当前颜色
-        try { picker.setColor(Color.parseColor(prefs.cardColor)) } catch (_: Exception) {}
+        try { picker.setColor(prefs.cardColor.toColorInt()) } catch (_: Exception) {}
         root.addView(picker)
 
         // 预览行
         val previewRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = android.view.Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = 12.dpToPx(context) }
@@ -322,14 +327,14 @@ class SettingsFragment : Fragment() {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = 8.dpToPx(context).toFloat()
-                try { setColor(Color.parseColor(prefs.cardColor)) } catch (_: Exception) { setColor(Color.WHITE) }
+                try { setColor(prefs.cardColor.toColorInt()) } catch (_: Exception) { setColor(Color.WHITE) }
             }
         }
         previewRow.addView(preview)
         // 十六进制文字
         val tvHex = TextView(context).apply {
             text = prefs.cardColor
-            setTextColor(Color.parseColor("#1F2937"))
+            setTextColor("#1F2937".toColorInt())
             textSize = 14f
             typeface = android.graphics.Typeface.MONOSPACE
             layoutParams = LinearLayout.LayoutParams(
@@ -343,7 +348,7 @@ class SettingsFragment : Fragment() {
         root.addView(createLabel(context, "卡片不透明度"))
         val opacityRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = android.view.Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
         }
         val opacitySlider = Slider(context).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -354,10 +359,10 @@ class SettingsFragment : Fragment() {
         }
         val tvOpacity = TextView(context).apply {
             text = "${prefs.cardOpacity}%"
-            setTextColor(Color.parseColor("#1F2937"))
+            setTextColor("#1F2937".toColorInt())
             textSize = 14f
             minWidth = 44.dpToPx(context)
-            gravity = android.view.Gravity.CENTER
+            gravity = Gravity.CENTER
         }
         opacityRow.addView(opacitySlider)
         opacityRow.addView(tvOpacity)
@@ -417,7 +422,7 @@ class SettingsFragment : Fragment() {
 
         lifecycleScope.launch {
             try {
-                var authApi: com.sunpanel.widget.api.SunPanelApiService
+                var authApi: SunPanelApiService
                 if (token.isNotBlank()) {
                     // 已有会话 token，直接重新拉取
                     SunPanelApi.reset()
@@ -455,11 +460,11 @@ class SettingsFragment : Fragment() {
 
     /** 拉取全部分组+书签并写缓存，然后刷新小部件 */
     private suspend fun validateAndCache(
-        authApi: com.sunpanel.widget.api.SunPanelApiService,
+        authApi: SunPanelApiService,
         serverUrl: String,
         tvStatus: TextView
     ) {
-        var groups = emptyList<com.sunpanel.widget.data.ItemIconGroup>()
+        var groups = emptyList<ItemIconGroup>()
         try {
             val grp = authApi.getGroups()
             if (grp.code == 0 && grp.data != null) groups = grp.data.list
@@ -538,15 +543,15 @@ class SettingsFragment : Fragment() {
                     toast("❌ API Token 验证失败: ${resp.msg}")
                 }
                 onDone?.invoke()
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 tvStatus.text = "❌ 网络错误"
                 toast("❌ 网络错误")
             }
         }
     }
 
-    private suspend fun syncPanelData(authApi: com.sunpanel.widget.api.SunPanelApiService, tvStatus: TextView) {
-        var groups = emptyList<com.sunpanel.widget.data.ItemIconGroup>()
+    private suspend fun syncPanelData(authApi: SunPanelApiService, tvStatus: TextView) {
+        var groups = emptyList<ItemIconGroup>()
         try {
             val grp = authApi.getGroups()
             if (grp.code == 0 && grp.data != null) groups = grp.data.list
@@ -554,7 +559,7 @@ class SettingsFragment : Fragment() {
                 val oa = authApi.getGroupsOpenApi()
                 if (oa.code == 0 && oa.data != null) groups = oa.data.list.map { it.toItemIconGroup() }
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             if (isAdded) tvStatus.text = "❌ 获取分组失败"
             return
         }
@@ -600,15 +605,15 @@ class SettingsFragment : Fragment() {
             setDimAmount(0.3f)
         }
         // 按钮文字颜色：必须在 show() 之后才能拿到按钮，直接设置（深色，保证白底可读）
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(Color.parseColor("#1F2937"))
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(Color.parseColor("#6B7280"))
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor("#1F2937".toColorInt())
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor("#6B7280".toColorInt())
     }
 
     // ========== UI 工具 ==========
 
     private fun createLabel(context: Context, text: String) = TextView(context).apply {
         this.text = text
-        setTextColor(Color.parseColor("#6B7280"))
+        setTextColor("#6B7280".toColorInt())
         textSize = 12f
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
