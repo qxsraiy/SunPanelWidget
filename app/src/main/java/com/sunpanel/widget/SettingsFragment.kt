@@ -1,28 +1,28 @@
 package com.sunpanel.widget
 
-import android.content.Intent
+import android.app.AlertDialog
+import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
-import android.widget.Toast
+import android.widget.*
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.slider.Slider
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import com.sunpanel.widget.api.SunPanelApi
-import com.sunpanel.widget.data.CachedGroupData
-import com.sunpanel.widget.data.CachedPanelData
-import com.sunpanel.widget.data.GetListByGroupIdRequest
-import com.sunpanel.widget.data.LoginRequest
-import com.sunpanel.widget.data.PreferencesManager
+import com.sunpanel.widget.data.*
 import com.sunpanel.widget.databinding.FragmentSettingsBinding
 import kotlinx.coroutines.launch
 
 /**
  * 设置页 Fragment
- * 配置 Sun-Panel 服务器地址 + 获取书签数据 + 外观自定义
+ * 四个设置项卡片 → 点击弹出详细配置对话框
  */
 class SettingsFragment : Fragment() {
 
@@ -40,318 +40,429 @@ class SettingsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        // 如果已有配置，回填到输入框
-        if (prefs.isConfigured) {
-            binding.etServerUrl.setText(prefs.serverUrl)
-            binding.etUsername.setText(prefs.username)
-            binding.etPassword.setText(prefs.password)
-            binding.etApiToken.setText(prefs.apiToken)
-            binding.switchUseChrome.isChecked = prefs.useChrome
-            binding.tvStatus.text = "✅ 已配置，点击「保存并同步」可重新拉取数据"
-        }
-
-        initColorPalette()
-        initOpacitySlider()
-
-        // Chrome 开关变更时保存
-        binding.switchUseChrome.setOnCheckedChangeListener { _, isChecked ->
-            prefs.useChrome = isChecked
-        }
-
-        // 保存并同步按钮
-        binding.btnSave.setOnClickListener {
-            val serverUrl = binding.etServerUrl.text.toString().trim()
-            val username = binding.etUsername.text.toString().trim()
-            val password = binding.etPassword.text.toString().trim()
-            val apiToken = binding.etApiToken.text.toString().trim()
-
-            if (serverUrl.isBlank()) {
-                Toast.makeText(requireContext(), "请填写服务器地址", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (username.isBlank() && password.isBlank() && apiToken.isBlank()) {
-                Toast.makeText(requireContext(), "请填写账号密码，或粘贴 API Token（二选一）", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            prefs.serverUrl = serverUrl
-            prefs.username = username
-            prefs.password = password
-            prefs.apiToken = apiToken
-
-            val panelTab = activity as? MainActivity
-            if (username.isNotBlank() && password.isNotBlank()) {
-                performLogin(serverUrl, username, password, apiToken)
-            } else if (apiToken.isNotBlank()) {
-                performSyncWithApiTokenOnly(serverUrl, apiToken)
-            } else {
-                Toast.makeText(requireContext(), "请填写账号密码，或粘贴 API Token", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        // 手动刷新小部件按钮
-        binding.btnRefreshWidget.setOnClickListener {
-            refreshWidget()
-            Toast.makeText(requireContext(), "已发送刷新指令", Toast.LENGTH_SHORT).show()
-        }
+        updateColorSummary()
+        binding.itemLogin.setOnClickListener { showLoginDialog() }
+        binding.itemBrowser.setOnClickListener { showBrowserDialog() }
+        binding.itemColor.setOnClickListener { showColorDialog() }
+        binding.itemRefresh.setOnClickListener { showRefreshDialog() }
     }
 
-    // ========== 卡片外观自定义 ==========
+    // ========== ① 账号登录弹框 ==========
 
-    private val colorPaletteColors = listOf(
-        "#FFFFFF",  // 白
-        "#E8E8E8",  // 极浅灰
-        "#CCCCCC",  // 浅灰
-        "#AAAAAA",  // 中灰
-        "#808080",  // 标准灰
-        "#666666",  // 深灰
-        "#3D3D3D",  // 深色灰
-        "#1A1A2E",  // 深蓝黑
-        "#F5F0E8",  // 米白
-        "#E8F4FD",  // 浅蓝
-        "#E8F5E9",  // 浅绿
-        "#FFF3E0",  // 浅橙
-    )
+    private fun showLoginDialog() {
+        val context = requireContext()
+        val root = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 24, 32, 8)
+        }
 
-    private var selectedColorIndex = 0
+        // 状态
+        val tvStatus = TextView(context).apply {
+            text = if (prefs.isConfigured) "已配置 ✅" else "未配置"
+            setTextColor(Color.parseColor("#6B7280"))
+            textSize = 13f
+        }
+        root.addView(tvStatus)
 
-    private fun initColorPalette() {
-        val palette = binding.colorPalette
-        palette.removeAllViews()
+        // 服务器地址
+        root.addView(createLabel(context, "服务器地址"))
+        val etServer = TextInputEditText(context).apply {
+            setText(prefs.serverUrl)
+            hint = "http://192.168.1.100:3002"
+            setSingleLine()
+        }
+        root.addView(wrapInput(context, etServer))
 
-        val savedColor = prefs.cardColor.uppercase()
-        selectedColorIndex = colorPaletteColors.indexOfFirst { it.uppercase() == savedColor }
-            .coerceAtLeast(0)
+        // 账号
+        root.addView(createLabel(context, "账号"))
+        val etUser = TextInputEditText(context).apply {
+            setText(prefs.username)
+            setSingleLine()
+        }
+        root.addView(wrapInput(context, etUser))
 
-        val row1 = LinearLayout(requireContext()).apply {
+        // 密码
+        root.addView(createLabel(context, "密码"))
+        val etPass = TextInputEditText(context).apply {
+            setText(prefs.password)
+            setSingleLine()
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        root.addView(wrapInput(context, etPass))
+
+        // API Token
+        root.addView(createLabel(context, "API Token（可选，用于后续新增书签）"))
+        val etApi = TextInputEditText(context).apply {
+            setText(prefs.apiToken)
+            setSingleLine()
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        root.addView(wrapInput(context, etApi))
+
+        // 登录并同步按钮
+        val btnLogin = MaterialButton(context).apply {
+            text = "登录并同步"
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            orientation = LinearLayout.HORIZONTAL
-            gravity = android.view.Gravity.CENTER_HORIZONTAL
+                LinearLayout.LayoutParams.MATCH_PARENT, 48.dpToPx(context)
+            ).apply { topMargin = 16.dpToPx(context) }
+            setOnClickListener {
+                val server = etServer.text.toString().trim()
+                val user = etUser.text.toString().trim()
+                val pass = etPass.text.toString().trim()
+                val api = etApi.text.toString().trim()
+                if (server.isBlank()) { toast("请填写服务器地址"); return@setOnClickListener }
+                prefs.serverUrl = server; prefs.username = user; prefs.password = pass; prefs.apiToken = api
+                if (user.isNotBlank() && pass.isNotBlank()) {
+                    performLogin(server, user, pass, api, tvStatus)
+                } else if (api.isNotBlank()) {
+                    performSyncWithApiTokenOnly(server, api, tvStatus)
+                } else { toast("请填写账号密码或 API Token") }
+            }
         }
-        val row2 = LinearLayout(requireContext()).apply {
+        root.addView(btnLogin)
+
+        // 刷新状态
+        val tvHint = TextView(context).apply {
+            text = "点击「登录并同步」后自动保存配置并刷新小部件"
+            setTextColor(Color.parseColor("#9CA3AF"))
+            textSize = 11f
+            gravity = android.view.Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = 12.dpToPx(context) }
+        }
+        root.addView(tvHint)
+
+        val dialog = AlertDialog.Builder(context, android.R.style.Theme_Material_Light_Dialog)
+            .setTitle("账号登录")
+            .setView(root)
+            .setPositiveButton("关闭", null)
+            .create()
+        dialog.show()
+        styleDialog(dialog)
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.9).toInt(),
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+    }
+
+    // ========== ② 打开方式弹框 ==========
+
+    private fun showBrowserDialog() {
+        val context = requireContext()
+        val root = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 24, 32, 8)
+        }
+
+        val radioGroup = RadioGroup(context).apply { orientation = RadioGroup.VERTICAL }
+        val radioDefault = RadioButton(context).apply {
+            text = "默认浏览器"
+            id = 1
+            isChecked = prefs.browserMode == 0
+        }
+        val radioCustom = RadioButton(context).apply {
+            text = "指定浏览器"
+            id = 2
+            isChecked = prefs.browserMode == 1
+        }
+        radioGroup.addView(radioDefault)
+        radioGroup.addView(radioCustom)
+        root.addView(radioGroup)
+
+        val layoutCustom = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = if (prefs.browserMode == 1) View.VISIBLE else View.GONE
+        }
+        root.addView(layoutCustom)
+
+        val etPkg = TextInputEditText(context).apply {
+            setText(prefs.customBrowserPackage)
+            hint = "com.android.chrome"
+            setSingleLine()
+        }
+        layoutCustom.addView(createLabel(context, "浏览器包名"))
+        layoutCustom.addView(wrapInput(context, etPkg))
+
+        val tvHint = TextView(context).apply {
+            text = "未安装指定浏览器时自动回退到默认浏览器"
+            setTextColor(Color.parseColor("#9CA3AF"))
+            textSize = 12f
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = 8.dpToPx(context) }
+        }
+        root.addView(tvHint)
+
+        radioGroup.setOnCheckedChangeListener { _, id ->
+            layoutCustom.visibility = if (id == 2) View.VISIBLE else View.GONE
+        }
+
+        val dialog = AlertDialog.Builder(context, android.R.style.Theme_Material_Light_Dialog)
+            .setTitle("打开方式")
+            .setView(root)
+            .setPositiveButton("保存") { _, _ ->
+                prefs.browserMode = if (radioCustom.isChecked) 1 else 0
+                prefs.customBrowserPackage = etPkg.text.toString().trim()
+                toast("打开方式已保存")
+            }
+            .setNegativeButton("取消", null)
+            .create()
+        dialog.show()
+        styleDialog(dialog)
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.9).toInt(),
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+    }
+
+    // ========== ③ 颜色配置弹框（专业取色器） ==========
+
+    private fun showColorDialog() {
+        val context = requireContext()
+        val root = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 16, 24, 8)
+        }
+
+        // 取色器 View
+        val picker = HsvColorPickerView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 320.dpToPx(context)
             )
+        }
+        // 设置当前颜色
+        try { picker.setColor(Color.parseColor(prefs.cardColor)) } catch (_: Exception) {}
+        root.addView(picker)
+
+        // 预览行
+        val previewRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = android.view.Gravity.CENTER_HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = 12.dpToPx(context) }
         }
-
-        colorPaletteColors.forEachIndexed { index, colorHex ->
-            val chip = createColorChip(colorHex, index == selectedColorIndex)
-            chip.setOnClickListener {
-                selectedColorIndex = index
-                prefs.cardColor = colorHex
-                initColorPalette()
+        // 预览色块
+        val preview = View(context).apply {
+            layoutParams = LinearLayout.LayoutParams(48.dpToPx(context), 48.dpToPx(context))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 8.dpToPx(context).toFloat()
+                try { setColor(Color.parseColor(prefs.cardColor)) } catch (_: Exception) { setColor(Color.WHITE) }
             }
-            if (index < 6) row1.addView(chip) else row2.addView(chip)
+        }
+        previewRow.addView(preview)
+        // 十六进制文字
+        val tvHex = TextView(context).apply {
+            text = prefs.cardColor
+            setTextColor(Color.parseColor("#1F2937"))
+            textSize = 14f
+            typeface = android.graphics.Typeface.MONOSPACE
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { marginStart = 12.dpToPx(context) }
+        }
+        previewRow.addView(tvHex)
+        root.addView(previewRow)
+
+        // 透明度
+        root.addView(createLabel(context, "卡片不透明度"))
+        val opacityRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        val opacitySlider = Slider(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+            )
+            valueFrom = 0f; valueTo = 100f; stepSize = 5f
+            value = prefs.cardOpacity.toFloat()
+        }
+        val tvOpacity = TextView(context).apply {
+            text = "${prefs.cardOpacity}%"
+            setTextColor(Color.parseColor("#1F2937"))
+            textSize = 14f
+            minWidth = 44.dpToPx(context)
+            gravity = android.view.Gravity.CENTER
+        }
+        opacityRow.addView(opacitySlider)
+        opacityRow.addView(tvOpacity)
+        root.addView(opacityRow)
+
+        // 实时更新
+        picker.onColorChanged = { color ->
+            val hex = String.format("#%06X", 0xFFFFFF and color)
+            tvHex.text = hex
+            (preview.background as? GradientDrawable)?.setColor(color)
+        }
+        opacitySlider.addOnChangeListener { _, value, _ ->
+            tvOpacity.text = "${value.toInt()}%"
         }
 
-        palette.addView(row1)
-        palette.addView(row2)
-    }
-
-    private fun createColorChip(colorHex: String, isSelected: Boolean): View {
-        val size = 44
-        val margin = 6
-        val params = LinearLayout.LayoutParams(dpToPx(size), dpToPx(size)).apply {
-            setMargins(dpToPx(margin), dpToPx(margin), dpToPx(margin), dpToPx(margin))
-        }
-        val view = View(requireContext()).apply { layoutParams = params }
-        val bg = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = dpToPx(8).toFloat()
-            try {
-                setColor(Color.parseColor(colorHex))
-            } catch (_: Exception) {
-                setColor(Color.WHITE)
+        val dialog = AlertDialog.Builder(context, android.R.style.Theme_Material_Light_Dialog)
+            .setTitle("颜色配置")
+            .setView(root)
+            .setPositiveButton("保存") { _, _ ->
+                prefs.cardColor = tvHex.text.toString()
+                prefs.cardOpacity = opacitySlider.value.toInt()
+                updateColorSummary()
+                toast("颜色已保存，请刷新桌面小部件")
             }
-            setStroke(if (isSelected) dpToPx(3) else dpToPx(1), Color.parseColor("#666666"))
-        }
-        view.background = bg
-        return view
+            .setNegativeButton("取消", null)
+            .create()
+        dialog.show()
+        styleDialog(dialog)
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
     }
 
-    private fun initOpacitySlider() {
-        val savedOpacity = prefs.cardOpacity.toFloat()
-        binding.opacitySlider.value = savedOpacity
-        binding.tvOpacityValue.text = "${savedOpacity.toInt()}%"
-        binding.opacitySlider.addOnChangeListener { _, value, _ ->
-            val intVal = value.toInt()
-            binding.tvOpacityValue.text = "${intVal}%"
-            prefs.cardOpacity = intVal
-        }
+    // ========== ④ 刷新小组件弹框 ==========
+
+    private fun showRefreshDialog() {
+        val dialog = AlertDialog.Builder(requireContext(), android.R.style.Theme_Material_Light_Dialog)
+            .setTitle("刷新小组件")
+            .setMessage("将使用最新配置刷新桌面小组件，\n如果刚刚修改了颜色/透明度，请先保存再刷新。")
+            .setPositiveButton("立即刷新") { _, _ ->
+                refreshWidget()
+                toast("已发送刷新指令")
+            }
+            .setNegativeButton("取消", null)
+            .create()
+        dialog.show()
+        styleDialog(dialog)
     }
 
-    private fun dpToPx(dp: Int): Int {
-        return (dp * requireContext().resources.displayMetrics.density).toInt()
-    }
+    // ========== 登录/同步逻辑 ==========
 
-    // ========== 登录 / 同步 ==========
-
-    private fun performLogin(serverUrl: String, username: String, password: String, apiToken: String = "") {
-        binding.btnSave.isEnabled = false
-        binding.tvStatus.text = "⏳ 正在登录..."
-
+    private fun performLogin(serverUrl: String, username: String, password: String, apiToken: String, tvStatus: TextView) {
+        tvStatus.text = "正在登录..."
         lifecycleScope.launch {
             try {
                 SunPanelApi.reset()
                 val apiService = SunPanelApi.getService(serverUrl, "")
-
                 val loginResponse = apiService.login(LoginRequest(username, password))
                 if (loginResponse.code != 0 || loginResponse.data == null) {
-                    val errMsg = "登录失败: ${loginResponse.msg} (code=${loginResponse.code})"
-                    binding.tvStatus.text = "❌ $errMsg"
-                    Toast.makeText(requireContext(), errMsg, Toast.LENGTH_SHORT).show()
+                    tvStatus.text = "❌ 登录失败: ${loginResponse.msg}"
                     return@launch
                 }
-
-                val sessionToken = loginResponse.data.token
-                prefs.token = sessionToken
-                prefs.apiToken = apiToken
-
-                val extraInfo = if (apiToken.isNotBlank()) "（API Token 已保留，用于后续添加书签）" else ""
-                binding.tvStatus.text = "✅ 登录成功，正在获取书签数据...$extraInfo"
-
+                prefs.token = loginResponse.data.token
+                tvStatus.text = "✅ 登录成功，获取书签中..."
                 SunPanelApi.reset()
-                val authApi = SunPanelApi.getService(serverUrl, sessionToken)
-                syncPanelData(authApi)
-
+                val authApi = SunPanelApi.getService(serverUrl, prefs.token)
+                syncPanelData(authApi, tvStatus)
             } catch (e: Exception) {
-                binding.tvStatus.text = "❌ 网络错误: ${e.localizedMessage ?: "未知错误"}"
-                Toast.makeText(requireContext(), "网络错误: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-            } finally {
-                binding.btnSave.isEnabled = true
+                tvStatus.text = "❌ 网络错误: ${e.localizedMessage ?: "未知错误"}"
             }
         }
     }
 
-    private fun performSyncWithApiTokenOnly(serverUrl: String, apiToken: String) {
-        binding.btnSave.isEnabled = false
-        binding.tvStatus.text = "⏳ 正在使用 API Token 同步分组..."
-
+    private fun performSyncWithApiTokenOnly(serverUrl: String, apiToken: String, tvStatus: TextView) {
+        tvStatus.text = "正在同步..."
         lifecycleScope.launch {
             try {
                 SunPanelApi.reset()
                 val authApi = SunPanelApi.getService(serverUrl, apiToken)
-
-                val openApiResponse = authApi.getGroupsOpenApi()
-                if (openApiResponse.code == 0 && openApiResponse.data != null) {
-                    val groups = openApiResponse.data.list.map { it.toItemIconGroup() }
-                    val statusMsg = "" +
-                        "✅ 获取到 ${groups.size} 个分组\n" +
-                        "⚠️ 书签读取需要登录会话 token，API Token 不适用。\n" +
-                        "请在下方「账号」「密码」字段填写管理账号，再点保存。"
-                    binding.tvStatus.text = statusMsg
-                    Toast.makeText(requireContext(),
-                        "分组已获取，但书签读取需要账号密码登录，请一并填写账号密码",
-                        Toast.LENGTH_LONG).show()
+                val resp = authApi.getGroupsOpenApi()
+                if (resp.code == 0 && resp.data != null) {
+                    tvStatus.text = "✅ 获取到 ${resp.data.list.size} 个分组\n⚠️ 书签需账号密码"
                 } else {
-                    binding.tvStatus.text = "❌ API Token 验证失败: ${openApiResponse.msg}"
+                    tvStatus.text = "❌ API Token 验证失败"
                 }
             } catch (e: Exception) {
-                binding.tvStatus.text = "❌ 网络错误: ${e.localizedMessage ?: "未知错误"}"
-            } finally {
-                binding.btnSave.isEnabled = true
+                tvStatus.text = "❌ 网络错误"
             }
         }
     }
 
-    private suspend fun syncPanelData(authApi: com.sunpanel.widget.api.SunPanelApiService) {
+    private suspend fun syncPanelData(authApi: com.sunpanel.widget.api.SunPanelApiService, tvStatus: TextView) {
         var groups = emptyList<com.sunpanel.widget.data.ItemIconGroup>()
-
-        // === 第一步：获取分组列表 ===
         try {
-            val groupsResponse = authApi.getGroups()
-            if (groupsResponse.code == 0 && groupsResponse.data != null) {
-                groups = groupsResponse.data.list
-                binding.tvStatus.text = "✅ 获取到 ${groups.size} 个分组，正在拉取书签..."
-            } else {
-                binding.tvStatus.text = "⚠️ 内部接口失败(code=${groupsResponse.code})，尝试 OpenAPI..."
-                val openApiResponse = authApi.getGroupsOpenApi()
-                if (openApiResponse.code == 0 && openApiResponse.data != null) {
-                    groups = openApiResponse.data.list.map { it.toItemIconGroup() }
-                    binding.tvStatus.text = "✅ OpenAPI 获取到 ${groups.size} 个分组，正在拉取书签..."
-                } else {
-                    val errMsg = "获取分组失败\n" +
-                        "内部接口: ${groupsResponse.msg} (code=${groupsResponse.code})\n" +
-                        "OpenAPI: ${openApiResponse.msg} (code=${openApiResponse.code})"
-                    binding.tvStatus.text = "❌ $errMsg"
-                    Toast.makeText(requireContext(), "获取分组失败，请查看底部详细错误", Toast.LENGTH_LONG).show()
-                    return
-                }
+            val grp = authApi.getGroups()
+            if (grp.code == 0 && grp.data != null) groups = grp.data.list
+            else {
+                val oa = authApi.getGroupsOpenApi()
+                if (oa.code == 0 && oa.data != null) groups = oa.data.list.map { it.toItemIconGroup() }
             }
         } catch (e: Exception) {
-            binding.tvStatus.text = "❌ 获取分组异常: ${e.localizedMessage}"
+            tvStatus.text = "❌ 获取分组失败"
             return
         }
+        if (groups.isEmpty()) { tvStatus.text = "⚠️ 未获取到分组"; return }
 
-        // === 第二步：遍历每个分组获取书签 ===
+        tvStatus.text = "正在拉取 ${groups.size} 个分组书签..."
         val cachedGroups = mutableListOf<CachedGroupData>()
-        var failCount = 0
-        val errorMessages = mutableListOf<String>()
-        var isTokenError = false
-
+        var fail = 0
         for (group in groups) {
             try {
-                val bookmarksResponse = authApi.getBookmarksByGroup(
-                    GetListByGroupIdRequest(group.id)
-                )
-                val bookmarks = if (bookmarksResponse.code == 0 && bookmarksResponse.data != null) {
-                    bookmarksResponse.data.list
-                } else {
-                    failCount++
-                    if (bookmarksResponse.code != 0) {
-                        errorMessages.add("分组[${group.title}]: code=${bookmarksResponse.code} msg=${bookmarksResponse.msg}")
-                        if (bookmarksResponse.code in listOf(1000, 1001, 1100)) {
-                            isTokenError = true
-                        }
-                    }
-                    emptyList()
-                }
-                cachedGroups.add(CachedGroupData(group, bookmarks))
-            } catch (e: Exception) {
-                failCount++
-                errorMessages.add("分组[${group.title}]: 异常 ${e.localizedMessage}")
-                cachedGroups.add(CachedGroupData(group, emptyList()))
+                val bm = authApi.getBookmarksByGroup(GetListByGroupIdRequest(group.id))
+                val list = if (bm.code == 0 && bm.data != null) bm.data.list else { fail++; emptyList() }
+                cachedGroups.add(CachedGroupData(group, list))
+            } catch (_: Exception) { fail++; cachedGroups.add(CachedGroupData(group, emptyList())) }
+        }
+        val total = cachedGroups.sumOf { it.bookmarks.size }
+        tvStatus.text = if (fail > 0) "⚠️ $fail 个分组失败，共 $total 个书签"
+        else "✅ 同步完成！$total 个书签"
+        prefs.cachedPanelData = CachedPanelData(cachedGroups)
+        refreshWidget()
+        toast("配置已保存，请刷新桌面小部件")
+        (activity as? MainActivity)?.refreshPanel()
+    }
+
+    private fun refreshWidget() {
+        requireContext().sendBroadcast(
+            android.content.Intent(requireContext(), SunPanelWidgetProvider::class.java).apply {
+                action = SunPanelWidgetProvider.ACTION_REFRESH
+            }
+        )
+    }
+
+    private fun updateColorSummary() {
+        binding.tvColorSummary.text = "卡片底色 / ${prefs.cardOpacity}%"
+    }
+
+    /** 统一弹框样式：圆角 + 磨砂半透明背景 + 遮罩淡入 */
+    private fun styleDialog(dialog: AlertDialog) {
+        dialog.window?.apply {
+            setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
+            setDimAmount(0.3f)
+            attributes.apply {
+                // 轻微模糊阴影，模拟磨砂
             }
         }
-
-        val statusMsg = if (failCount > 0) {
-            val errorDetail = if (errorMessages.isNotEmpty()) {
-                "\n" + errorMessages.take(3).joinToString("\n")
-            } else ""
-            val tokenHint = if (isTokenError) {
-                "\n\n⚠️ 书签读取需要用「账号+密码」登录（读取的会话token），\n" +
-                "API Token 保留用于后续的添加/编辑书签（写操作）"
-            } else ""
-            "⚠️ ${failCount}/${groups.size} 个分组获取书签失败$errorDetail$tokenHint"
-        } else {
-            "✅ 同步完成！${groups.size} 个分组，${cachedGroups.sumOf { it.bookmarks.size }} 个书签"
-        }
-        binding.tvStatus.text = statusMsg
-
-        prefs.cachedPanelData = CachedPanelData(cachedGroups)
-
-        Toast.makeText(
-            requireContext(),
-            "配置成功！请到桌面长按空白处添加小部件",
-            Toast.LENGTH_LONG
-        ).show()
-        refreshWidget()
     }
 
-    /** 发送广播通知桌面小部件刷新数据 */
-    private fun refreshWidget() {
-        val intent = Intent(requireContext(), SunPanelWidgetProvider::class.java).apply {
-            action = SunPanelWidgetProvider.ACTION_REFRESH
-        }
-        requireContext().sendBroadcast(intent)
+    // ========== UI 工具 ==========
+
+    private fun createLabel(context: Context, text: String) = TextView(context).apply {
+        this.text = text
+        setTextColor(Color.parseColor("#6B7280"))
+        textSize = 12f
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = 12.dpToPx(context); bottomMargin = 4.dpToPx(context) }
     }
+
+    private fun wrapInput(context: Context, editText: TextInputEditText): TextInputLayout {
+        val layout = TextInputLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        layout.addView(editText)
+        return layout
+    }
+
+    private fun toast(msg: String) {
+        android.widget.Toast.makeText(requireContext(), msg, android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    private fun Int.dpToPx(context: Context): Int =
+        (this * context.resources.displayMetrics.density).toInt()
 
     override fun onDestroyView() {
         super.onDestroyView()

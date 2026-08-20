@@ -65,11 +65,32 @@ class PreferencesManager(context: Context) {
             cachedDataJson = if (value != null) gson.toJson(value) else ""
         }
 
-    // === 浏览器选择：默认浏览器 vs Chrome ===
+    // === 浏览器选择：默认浏览器 vs 指定浏览器 ===
 
+    /**
+     * 打开方式：
+     * 0 = 默认浏览器
+     * 1 = 指定浏览器（customBrowserPackage）
+     */
+    var browserMode: Int
+        get() = prefs.getInt(KEY_BROWSER_MODE, 0)
+        set(value) = prefs.edit().putInt(KEY_BROWSER_MODE, value.coerceIn(0, 1)).apply()
+
+    var customBrowserPackage: String
+        get() = prefs.getString(KEY_CUSTOM_BROWSER, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_CUSTOM_BROWSER, value).apply()
+
+    // ⚠️ 兼容旧版：字段名保留，逻辑迁移到 browserMode
     var useChrome: Boolean
-        get() = prefs.getBoolean(KEY_USE_CHROME, false)
-        set(value) = prefs.edit().putBoolean(KEY_USE_CHROME, value).apply()
+        get() = browserMode == 1 && customBrowserPackage == "com.android.chrome"
+        set(value) {
+            if (value) {
+                browserMode = 1
+                customBrowserPackage = "com.android.chrome"
+            } else {
+                browserMode = 0
+            }
+        }
 
     // === 卡片外观自定义 ===
 
@@ -112,6 +133,8 @@ class PreferencesManager(context: Context) {
         private const val KEY_API_TOKEN = "api_token"
         private const val KEY_TOKEN = "token"
         private const val KEY_CACHED_DATA = "cached_data"
+        private const val KEY_BROWSER_MODE = "browser_mode"
+        private const val KEY_CUSTOM_BROWSER = "custom_browser"
         private const val KEY_USE_CHROME = "use_chrome"
         private const val KEY_CARD_COLOR = "card_color"
         private const val KEY_CARD_OPACITY = "card_opacity"

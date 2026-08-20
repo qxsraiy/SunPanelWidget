@@ -4,11 +4,12 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
-    <!-- ⭐ 修复：把原本的 <View> 改成 <ImageView> 或者是无内容的 <FrameLayout> -->
+    <!-- 背景色层：被代码涂色（半透明卡片底），必须有背景才能被 setBackgroundTintList 着色 -->
     <FrameLayout
         android:id="@+id/widgetItemBg"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_card_base" />
 
     <!-- ② 内容层：图标 + 名称 + 备注，带水波纹（在表层） -->
     <LinearLayout
