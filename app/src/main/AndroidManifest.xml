@@ -15,6 +15,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SunPanelWidget"
         android:usesCleartextTraffic="true"
+        android:enableOnBackInvokedCallback="true"
         tools:targetApi="31">
 
         <!-- 主入口：设置页（服务器地址、账号、密码） -->
