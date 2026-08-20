@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 书签卡片：圆角半透明底色 + 点击水波涟漪（ripple）。
+     分组标题行使用时，Service 会把背景覆盖为透明 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widgetItemRoot"
     android:layout_width="match_parent"
@@ -7,11 +9,11 @@
     android:orientation="horizontal"
     android:clickable="true"
     android:focusable="true"
-    android:background="?android:attr/selectableItemBackground"
+    android:background="@drawable/widget_card_ripple"
     android:paddingStart="12dp"
     android:paddingEnd="12dp"
-    android:paddingTop="8dp"
-    android:paddingBottom="8dp">
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp">
 
     <!-- 字母色块图标（书签专用；分组标题时 GONE） -->
     <TextView

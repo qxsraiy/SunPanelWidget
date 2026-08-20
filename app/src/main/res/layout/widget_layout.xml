@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 整体背景透明：每个书签是独立卡片，视觉上飘在桌面上 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_background">
+    android:background="@android:color/transparent">
 
     <!-- 单列网格（= 列表流）：顶部对齐，每个 item 高度自适应 -->
     <GridView

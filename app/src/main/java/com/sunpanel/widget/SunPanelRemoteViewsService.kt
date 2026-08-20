@@ -88,8 +88,10 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
             }
         }
 
-        /** 分组标题：纯文字，隐藏图标和备注，不设 fill-in */
+        /** 分组标题：纯文字，无卡片底、无水波。背景覆盖为透明，隐藏图标和备注 */
         private fun renderHeader(views: RemoteViews, header: WidgetDisplayItem.Header) {
+            // ⭐ 背景覆盖为透明（去掉 ripple 卡片底色，标题行不要水波）
+            views.setInt(R.id.widgetItemRoot, "setBackgroundColor", 0x00000000.toInt())
             views.setTextViewText(R.id.widgetItemTitle, header.groupName)
             // 隐藏图标和备注
             views.setViewVisibility(R.id.widgetItemIcon, View.GONE)
