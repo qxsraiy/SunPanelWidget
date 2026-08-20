@@ -1,61 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 书签卡片：圆角半透明底色 + 点击水波涟漪（ripple）。
-     分组标题行使用时，Service 会把背景覆盖为透明 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widgetItemRoot"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
     android:clickable="true"
-    android:focusable="true"
-    android:background="@drawable/widget_card_ripple"
-    android:paddingStart="12dp"
-    android:paddingEnd="12dp"
-    android:paddingTop="10dp"
-    android:paddingBottom="10dp">
+    android:focusable="true">
 
-    <!-- 字母色块图标（书签专用；分组标题时 GONE） -->
-    <TextView
-        android:id="@+id/widgetItemIcon"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:gravity="center"
-        android:textSize="19sp"
-        android:textColor="#FFFFFF"
-        android:textStyle="bold"
-        android:includeFontPadding="false"
-        android:visibility="visible" />
+    <!-- ⭐ 修复：把原本的 <View> 改成 <ImageView> 或者是无内容的 <FrameLayout> -->
+    <FrameLayout
+        android:id="@+id/widgetItemBg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
-    <!-- 名称 + 备注 -->
+    <!-- ② 内容层：图标 + 名称 + 备注，带水波纹（在表层） -->
     <LinearLayout
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:layout_marginStart="12dp"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:background="?android:attr/selectableItemBackground"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp">
 
+        <!-- 字母色块图标（书签专用；分组标题时 GONE） -->
         <TextView
-            android:id="@+id/widgetItemTitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textSize="15sp"
+            android:id="@+id/widgetItemIcon"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:gravity="center"
+            android:textSize="19sp"
             android:textColor="#FFFFFF"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/widgetItemDesc"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textSize="12sp"
-            android:textColor="#B3FFFFFF"
-            android:layout_marginTop="2dp"
+            android:textStyle="bold"
+            android:includeFontPadding="false"
             android:visibility="visible" />
+
+        <!-- 名称 + 备注 -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="12dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/widgetItemTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="15sp"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widgetItemDesc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="12sp"
+                android:textColor="#B3FFFFFF"
+                android:layout_marginTop="2dp"
+                android:visibility="visible" />
+        </LinearLayout>
     </LinearLayout>
 
-</LinearLayout>
+</FrameLayout>

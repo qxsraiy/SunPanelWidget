@@ -17,11 +17,13 @@ import com.sunpanel.widget.data.PreferencesManager
  * 桌面小部件 Provider
  *
  * 布局：GridView（可滑动网格，自动列数）
- * 点击：setPendingIntentTemplate(显式广播 ACTION_CLICK) + setOnClickFillInIntent(extras)
- *       → 系统合并后广播到自己 Provider → onReceive 中 startActivity 打开浏览器
+ * 点击：setPendingIntentTemplate(显式广播 ACTION_CLICK) + setOnClickFillInIntent(data+extras 双保险)
+ *       → 系统合并后广播给自己 Provider → onReceive 中 startActivity 打开浏览器
  *       （Android 14+ 禁止 FLAG_MUTABLE + 隐式 Intent，因此用显式广播中转）
+ *       （Android 14+ 后台启动 Activity 受限，onReceive 里用 ActivityOptions 豁免）
  * 图标：文字字母（无 Bitmap）
  */
+@Suppress("DEPRECATION")
 class SunPanelWidgetProvider : AppWidgetProvider() {
 
     companion object {
@@ -99,12 +101,6 @@ class SunPanelWidgetProvider : AppWidgetProvider() {
         }
     }
 
-    /**
-     * 检测系统默认浏览器；若未设置默认则回退 Chrome
-     */
-    // 已不再使用（模板改为显式广播），保留以备将来；若不需要可删除
-    // private fun detectBrowserPackage... 不再需要
-
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
 
@@ -135,22 +131,35 @@ class SunPanelWidgetProvider : AppWidgetProvider() {
                 }
             }
 
-            // ⭐ 处理点击广播：从 fill-in 的 extras 中读取 URL，打开浏览器
+            // ⭐ 处理点击广播：从 fill-in 的 data URI 或 extras 中读取 URL，打开浏览器
             ACTION_CLICK -> {
-                val url = intent.getStringExtra("click_url")
+                // 优先从 data URI 取（FILL_IN_DATA 合并更可靠）
+                var url = intent.data?.toString()
+                // 备选从 extras 取（FILL_IN_EXTRAS 兜底）
+                if (url.isNullOrBlank()) {
+                    url = intent.getStringExtra("click_url")
+                }
                 Log.d(TAG, "ACTION_CLICK: url=$url")
                 if (!url.isNullOrBlank() && url.startsWith("http")) {
                     try {
                         val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         }
-                        context.startActivity(browserIntent)
+                        // ⭐ Android 14+ 后台启动 Activity 豁免参数
+                        if (Build.VERSION.SDK_INT >= 34) {
+                            val options = android.app.ActivityOptions.makeBasic()
+                            options.pendingIntentBackgroundActivityStartMode =
+                                android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                            context.startActivity(browserIntent, options.toBundle())
+                        } else {
+                            context.startActivity(browserIntent)
+                        }
                         Log.d(TAG, "成功调起浏览器访问: $url")
                     } catch (e: Exception) {
                         Log.e(TAG, "调起浏览器失败: $url", e)
                     }
                 } else {
-                    Log.e(TAG, "ACTION_CLICK: URL 无效: $url")
+                    Log.e(TAG, "ACTION_CLICK: URL 无效或为空")
                 }
             }
         }

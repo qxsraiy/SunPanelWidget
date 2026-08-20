@@ -15,12 +15,13 @@ import com.sunpanel.widget.data.toWidgetDisplayList
 /**
  * RemoteViewsService — 为 GridView 提供数据
  *
- * 实现方式与最初可点击版本完全一致：
- * - 单布局（widget_item.xml），viewTypeCount=1
- * - fill-in 设置在 widgetItemRoot/widgetItemIcon/widgetItemTitle（三个位置）
- * - fill-in 只传 extras（click_url）→ 显式广播 ACTION_CLICK → Provider 打开浏览器
- * - 分组标题也使用同一布局，仅隐藏图标和备注，不设 fill-in
+ * 关键设计（解决"该亮的不亮、该跳的不跳、乱跳"问题）：
+ * - 三层布局：widgetItemRoot(fill-in) + widgetItemBg(着色层) + 内容层(水波)
+ * - 着色只作用于 widgetItemBg → 永不覆盖水波
+ * - Header 与无 URL 书签都显式清空 fillInIntent（清除 GridView 复用幽灵点击）
+ * - fill-in 同时放 data URI + extras（双保险），只设在根视图 widgetItemRoot
  */
+@Suppress("DEPRECATION")
 class SunPanelRemoteViewsService : RemoteViewsService() {
 
     override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
@@ -38,6 +39,10 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
 
         private var displayItems: List<WidgetDisplayItem> = emptyList()
 
+        // 颜色缓存：onDataSetChanged 里读一次，避免每张卡片读 SharedPreferences 超时
+        private var cachedBaseColor: Int = Color.WHITE
+        private var cachedAlpha: Int = 38  // 15% → 38/255
+
         private val colorPool = intArrayOf(
             0xFF4A90D9.toInt(), 0xFF50B86C.toInt(), 0xFFE67E22.toInt(),
             0xFF9B59B6.toInt(), 0xFF1ABC9C.toInt(), 0xFFE74C3C.toInt(),
@@ -53,6 +58,14 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
         override fun onDataSetChanged() {
             try {
                 val prefs = PreferencesManager.getInstance(context)
+                // ⭐ 颜色/透明度只读一次，缓存到成员变量
+                cachedBaseColor = try {
+                    Color.parseColor(prefs.cardColor)
+                } catch (_: Exception) {
+                    Color.WHITE
+                }
+                cachedAlpha = (prefs.cardOpacity * 255 / 100).coerceIn(0, 255)
+
                 val data = prefs.cachedPanelData
                 displayItems = data?.toWidgetDisplayList() ?: emptyList()
                 Log.d(TAG, "onDataSetChanged: 加载了 ${displayItems.size} 项")
@@ -64,7 +77,7 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
 
         override fun getCount(): Int = displayItems.size
 
-        // ⭐ 单布局（与最初可点击版本一致）
+        // 单布局（与最初可点击版本一致）
         override fun getViewTypeCount(): Int = 1
 
         override fun getViewAt(position: Int): RemoteViews {
@@ -88,29 +101,27 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
             }
         }
 
-        /** 分组标题：纯文字，无卡片底、无水波 */
+        /** 分组标题：纯文字，无卡片底、无水波、无点击 */
         private fun renderHeader(views: RemoteViews, header: WidgetDisplayItem.Header) {
-            // ⭐ 统一用 tint 机制（透明色），与书签行一致，避免 GridView 复用串色
-            applyCardBackground(views, android.graphics.Color.TRANSPARENT)
+            // ⭐ 着色层涂透明 → 不挡背景、不显示水波
+            applyCardBackground(views, Color.TRANSPARENT)
             views.setTextViewText(R.id.widgetItemTitle, header.groupName)
-            // 隐藏图标和备注
             views.setViewVisibility(R.id.widgetItemIcon, View.GONE)
             views.setViewVisibility(R.id.widgetItemDesc, View.GONE)
-            // 标题加粗加大，留出分组间距
             views.setTextViewTextSize(R.id.widgetItemTitle, android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
-            // 注意：不设 fill-in，点击分组标题什么都不做
+            // ⭐ 清空 GridView 复用带来的旧点击事件，防止"幽灵点击"乱跳
+            views.setOnClickFillInIntent(R.id.widgetItemRoot, Intent())
         }
 
         /** 书签卡片：色块图标 + 名称 + 备注 + fill-in 点击 */
         private fun renderBookmark(views: RemoteViews, bookmark: WidgetDisplayItem.Bookmark) {
             val info = bookmark.item
 
-            // 显示图标和备注
             views.setViewVisibility(R.id.widgetItemIcon, View.VISIBLE)
             views.setViewVisibility(R.id.widgetItemDesc, View.VISIBLE)
 
-            // ⭐⭐ 卡片底色：应用用户自定义颜色 + 透明度（统一半透明）⭐⭐
-            applyCardBackground(views, null)  // null = 使用用户设置
+            // ⭐ 着色层应用用户自定义颜色+透明度（null = 用缓存值）
+            applyCardBackground(views, null)
 
             // 名称
             val title = info.title.ifBlank { "未命名" }
@@ -131,7 +142,7 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
             views.setTextViewText(R.id.widgetItemIcon, letter)
             views.setInt(R.id.widgetItemIcon, "setBackgroundColor", bgColor)
 
-            // ⭐ 真实 URL → fill-in extras（与最初可点击版本完全一致）
+            // ⭐ 真实 URL → fill-in（data URI + extras 双保险，只设在根视图）
             val targetUrl = when {
                 !info.url.isNullOrBlank() -> info.url
                 !info.lanUrl.isNullOrBlank() -> info.lanUrl
@@ -145,14 +156,13 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
 
             if (httpUrl.isNotBlank()) {
                 val fillInIntent = Intent().apply {
-                    putExtra("click_url", httpUrl)
+                    data = android.net.Uri.parse(httpUrl)   // FILL_IN_DATA 合并（更可靠）
+                    putExtra("click_url", httpUrl)         // FILL_IN_EXTRAS 兜底
                 }
-                // ⭐ 三个位置都设 fill-in（与最初可点击版本完全一致）
                 views.setOnClickFillInIntent(R.id.widgetItemRoot, fillInIntent)
-                views.setOnClickFillInIntent(R.id.widgetItemIcon, fillInIntent)
-                views.setOnClickFillInIntent(R.id.widgetItemTitle, fillInIntent)
-                // 新增：备注区域也设 fill-in，点击描述也能打开
-                views.setOnClickFillInIntent(R.id.widgetItemDesc, fillInIntent)
+            } else {
+                // ⭐ 无 URL 的书签也清空复用旧事件，防止乱跳
+                views.setOnClickFillInIntent(R.id.widgetItemRoot, Intent())
             }
         }
 
@@ -163,42 +173,32 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
         // ========== 工具 ==========
 
         /**
-         * 统一设置卡片背景（tint 机制，所有行一致，避免 GridView 复用串色）
-         * @param overrideColor 非 null 时用指定颜色（全透明等）；null 时用用户设置（cardColor + cardOpacity）
+         * 统一设置【背景色层 widgetItemBg】（不再作用于 root，不挡水波）
+         * @param overrideColor 非 null 时用指定颜色（全透明等）；null 时用用户缓存设置
          */
         private fun applyCardBackground(views: RemoteViews, overrideColor: Int?) {
             try {
-                val finalColor: Int
-                if (overrideColor != null) {
-                    finalColor = overrideColor
+                val finalColor = if (overrideColor != null) {
+                    overrideColor
                 } else {
-                    val prefs = PreferencesManager.getInstance(context)
-                    val baseColor = try {
-                        Color.parseColor(prefs.cardColor)
-                    } catch (_: Exception) {
-                        Color.WHITE
-                    }
-                    // cardOpacity: 0-100（值越小越透明）→ alpha = opacity*255/100
-                    val alpha = (prefs.cardOpacity * 255 / 100).coerceIn(0, 255)
-                    finalColor = (baseColor and 0x00FFFFFF) or (alpha shl 24)
+                    (cachedBaseColor and 0x00FFFFFF) or (cachedAlpha shl 24)
                 }
 
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                    // setColorStateList 是 API 31+ 方法
+                    // API 31+：用 tint 给背景层着色，保留圆角/水波
                     views.setColorStateList(
-                        R.id.widgetItemRoot,
+                        R.id.widgetItemBg,
                         "setBackgroundTintList",
                         android.content.res.ColorStateList.valueOf(finalColor)
                     )
                 } else {
-                    // 低版本(API 29-30)兜底：直接设半透明纯色（无圆角）
-                    views.setInt(R.id.widgetItemRoot, "setBackgroundColor", finalColor)
+                    // API 29-30 兜底
+                    views.setInt(R.id.widgetItemBg, "setBackgroundColor", finalColor)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "设置卡片底色失败", e)
             }
         }
-
 
         /** 从 URL 提取域名（用于备注兜底显示） */
         private fun shortDomain(url: String): String {

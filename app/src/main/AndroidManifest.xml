@@ -43,10 +43,11 @@
                 android:resource="@xml/sunpanel_widget_info" />
         </receiver>
 
-        <!-- 远程视图服务：为 ListView 提供数据 -->
+        <!-- 远程视图服务：为 ListView/GridView 提供数据 -->
+        <!-- ⭐ 修复：必须设置为 true，允许系统 Launcher 进程绑定 -->
         <service
             android:name=".SunPanelRemoteViewsService"
-            android:exported="false"
+            android:exported="true"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
 
     </application>
