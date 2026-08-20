@@ -58,6 +58,9 @@ dependencies {
     // 协程
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
+    // Fragment + WebView
+    implementation("androidx.fragment:fragment-ktx:1.7.1")
+
     // WorkManager (后台定时刷新)
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 }
