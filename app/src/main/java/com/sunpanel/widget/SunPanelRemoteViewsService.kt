@@ -4,10 +4,12 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import java.net.URL
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
+import com.sunpanel.widget.data.IconCache
 import com.sunpanel.widget.data.PreferencesManager
 import com.sunpanel.widget.data.WidgetDisplayItem
 import com.sunpanel.widget.data.toWidgetDisplayList
@@ -90,10 +92,75 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
                     } else null
                 }
 
+                // ⭐ 后台预加载所有图标（内存→磁盘→网络），完成后通知小部件重绘
+                preloadIconsAsync()
+
                 Log.d(TAG, "onDataSetChanged: 加载了 ${displayItems.size} 项, URL缓存 ${sUrlCache.size} 条")
             } catch (e: Exception) {
                 Log.e(TAG, "onDataSetChanged 失败", e)
                 displayItems = emptyList()
+            }
+        }
+
+        /** 收集全部图标 URL（数据里有就用，没有就用域名 favicon.ico 兜底） */
+        private fun collectIconUrls(): List<String> {
+            val urls = LinkedHashSet<String>()
+            for (item in displayItems) {
+                if (item !is WidgetDisplayItem.Bookmark) continue
+                val info = item.item
+                resolveIconUrl(info)?.let { urls.add(it) }
+            }
+            return urls.toList()
+        }
+
+        /**
+         * 解析书签的最终图标 URL：
+         * 1. 数据里的 icon.src（处理相对路径 → 拼接服务器地址）
+         * 2. 都没有 → 域名 favicon.ico 兜底
+         */
+        private fun resolveIconUrl(info: com.sunpanel.widget.data.ItemIconInfo): String? {
+            val iconUrl = info.icon?.src?.takeIf { it.isNotBlank() }
+            if (iconUrl != null) {
+                if (iconUrl.startsWith("http://") || iconUrl.startsWith("https://")) {
+                    return iconUrl
+                }
+                // 相对路径（如 /uploads/xxx.png）→ 拼接服务器地址
+                val server = PreferencesManager.getInstance(context).serverUrl
+                    .trimEnd('/')
+                if (server.isNotBlank()) {
+                    return server + (if (iconUrl.startsWith("/")) iconUrl else "/$iconUrl")
+                }
+            }
+            // 兜底：域名 favicon.ico
+            return buildFaviconUrl(info.url)
+        }
+
+        /** 后台加载图标（全部走 scheduleLoad 队列，下载完成后自动通知小部件刷新） */
+        private fun preloadIconsAsync() {
+            val urls = collectIconUrls()
+            if (urls.isEmpty()) return
+
+            val cache = IconCache.getInstance(context)
+            // 设置全部下载完成回调（只设一次）
+            if (cache.onAllDownloadsDone == null) {
+                cache.onAllDownloadsDone = {
+                    cache.onAllDownloadsDone = null
+                    Log.d("SunPanelWidget", "所有图标下载完成，通知小部件刷新")
+                    runCatching {
+                        val appWidgetManager = AppWidgetManager.getInstance(context)
+                        val componentName = android.content.ComponentName(
+                            context, SunPanelWidgetProvider::class.java
+                        )
+                        val ids = appWidgetManager.getAppWidgetIds(componentName)
+                        if (ids.isNotEmpty()) {
+                            appWidgetManager.notifyAppWidgetViewDataChanged(ids, R.id.widgetGrid)
+                        }
+                    }
+                }
+            }
+            // 全部丢到下载队列
+            for (url in urls) {
+                cache.scheduleLoad(url)
             }
         }
 
@@ -128,6 +195,8 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
             // ⭐ 着色层涂透明 → 不挡背景、不显示水波
             applyCardBackground(views, Color.TRANSPARENT)
             views.setTextViewText(R.id.widgetItemTitle, header.groupName)
+            views.setViewVisibility(R.id.widgetItemIconBox, View.GONE)
+            views.setViewVisibility(R.id.widgetItemIconImg, View.GONE)
             views.setViewVisibility(R.id.widgetItemIcon, View.GONE)
             views.setViewVisibility(R.id.widgetItemDesc, View.GONE)
             views.setTextViewTextSize(R.id.widgetItemTitle, android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
@@ -135,12 +204,13 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
             views.setOnClickFillInIntent(R.id.widgetItemRoot, Intent())
         }
 
-        /** 书签卡片：色块图标 + 名称 + 备注 + fill-in 点击 */
+        /** 书签卡片：真实图标(缓存) + 名称 + 备注 + fill-in 点击 */
         private fun renderBookmark(views: RemoteViews, bookmark: WidgetDisplayItem.Bookmark, position: Int) {
             val info = bookmark.item
 
-            views.setViewVisibility(R.id.widgetItemIcon, View.VISIBLE)
+            views.setViewVisibility(R.id.widgetItemIconBox, View.VISIBLE)
             views.setViewVisibility(R.id.widgetItemDesc, View.VISIBLE)
+            views.setInt(R.id.widgetItemIconBox, "setBackgroundColor", 0x00000000)
 
             // ⭐ 着色层应用用户自定义颜色+透明度（null = 用缓存值）
             applyCardBackground(views, null)
@@ -158,11 +228,37 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
             }
             views.setTextViewText(R.id.widgetItemDesc, desc)
 
-            // 色块图标（无 Bitmap）
-            val letter = title.first().uppercaseChar().toString()
-            val bgColor = tryParseColor(info.icon?.backgroundColor) ?: generateColor(title)
-            views.setTextViewText(R.id.widgetItemIcon, letter)
-            views.setInt(R.id.widgetItemIcon, "setBackgroundColor", bgColor)
+            // ⭐ 真实图标（仅查缓存，不阻塞 binder 线程；后台 preload 线程已预下载）
+            val iconUrl = resolveIconUrl(info)
+            var gotIcon = false
+            if (iconUrl != null) {
+                try {
+                    val cache = IconCache.getInstance(context)
+                    val bmp = cache.peekIcon(iconUrl)
+                    if (bmp != null) {
+                        gotIcon = true
+                        views.setViewVisibility(R.id.widgetItemIconImg, View.VISIBLE)
+                        views.setViewVisibility(R.id.widgetItemIcon, View.GONE)
+                        views.setImageViewBitmap(R.id.widgetItemIconImg, bmp)
+                        views.setInt(R.id.widgetItemIconBox, "setBackgroundColor", 0x00FFFFFF)
+                    } else {
+                        // ⭐ peek 未命中 → 加入后台下载队列，下次刷新就有图标了
+                        cache.scheduleLoad(iconUrl)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "加载图标失败($iconUrl): ${e.message}")
+                }
+            }
+
+            // 字母兜底（无图标或下载失败）
+            if (!gotIcon) {
+                val letter = title.first().uppercaseChar().toString()
+                val bgColor = tryParseColor(info.icon?.backgroundColor) ?: generateColor(title)
+                views.setViewVisibility(R.id.widgetItemIconImg, View.GONE)
+                views.setViewVisibility(R.id.widgetItemIcon, View.VISIBLE)
+                views.setTextViewText(R.id.widgetItemIcon, letter)
+                views.setInt(R.id.widgetItemIcon, "setBackgroundColor", bgColor)
+            }
 
             // ⭐ 真实 URL → fill-in（data URI + extras 双保险，只设在根视图）
             val targetUrl = when {
@@ -232,6 +328,25 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
                 clean.substringBefore("/")
             } catch (_: Exception) {
                 url
+            }
+        }
+
+        /**
+         * 构建 favicon 图标 URL（当数据里没有 icon.src 时兜底尝试）
+         * 优先取网站根路径的 /favicon.ico；没有 http 前缀则解析域名
+         */
+        private fun buildFaviconUrl(url: String): String? {
+            if (url.isBlank()) return null
+            return try {
+                val javaUrl = URL(url)
+                val host = javaUrl.host
+                if (host.isBlank()) {
+                    null
+                } else {
+                    "https://$host/favicon.ico"
+                }
+            } catch (_: Exception) {
+                null
             }
         }
 

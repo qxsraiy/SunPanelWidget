@@ -22,17 +22,34 @@
         android:paddingTop="10dp"
         android:paddingBottom="10dp">
 
-        <!-- 字母色块图标（书签专用；分组标题时 GONE） -->
-        <TextView
-            android:id="@+id/widgetItemIcon"
+        <!-- 图标容器：真实图标 ImageView + 字母兜底 TextView（分组标题时整个 GONE） -->
+        <FrameLayout
+            android:id="@+id/widgetItemIconBox"
             android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:gravity="center"
-            android:textSize="19sp"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold"
-            android:includeFontPadding="false"
-            android:visibility="visible" />
+            android:layout_height="44dp">
+
+            <!-- ⭐ 真实图标（preload 后的 Bitmap） -->
+            <ImageView
+                android:id="@+id/widgetItemIconImg"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitCenter"
+                android:contentDescription="@string/widget_icon"
+                android:padding="4dp"
+                android:visibility="gone" />
+
+            <!-- 字母兜底：无图标/下载失败时显示 -->
+            <TextView
+                android:id="@+id/widgetItemIcon"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:textSize="19sp"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:visibility="visible" />
+        </FrameLayout>
 
         <!-- 名称 + 备注 -->
         <LinearLayout
