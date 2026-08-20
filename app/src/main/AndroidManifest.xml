@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- 网络状态：判断是否需要立即刷新 -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 悬浮窗权限：无感启动浏览器（可选，授权后使用） -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:name=".SunPanelWidgetApp"
@@ -55,6 +57,9 @@
         <activity
             android:name=".WidgetClickProxyActivity"
             android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:launchMode="singleInstance"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
     </application>

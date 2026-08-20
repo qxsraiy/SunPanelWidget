@@ -196,8 +196,72 @@ class SettingsFragment : Fragment() {
         }
         root.addView(tvHint)
 
+        // 悬浮窗无感启动开关
+        val sep = View(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 1
+            ).apply { topMargin = 16.dpToPx(context); bottomMargin = 16.dpToPx(context) }
+            setBackgroundColor(Color.parseColor("#E5E7EB"))
+        }
+        root.addView(sep)
+
+        val overlayRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = 12.dpToPx(context) }
+        }
+        val overlayLabel = TextView(context).apply {
+            text = "悬浮窗无感启动"
+            textSize = 15f
+            setTextColor(Color.parseColor("#1F2937"))
+            layoutParams = LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+            )
+        }
+        overlayRow.addView(overlayLabel)
+
+        val switchOverlay = Switch(context).apply {
+            isChecked = WidgetClickProxyActivity.hasOverlayPermission(context)
+        }
+        overlayRow.addView(switchOverlay)
+        root.addView(overlayRow)
+
+        val tvOverlayHint = TextView(context).apply {
+            text = if (WidgetClickProxyActivity.hasOverlayPermission(context))
+                "✓ 悬浮窗权限已授权，点击将完全无感（无Activity切换）"
+            else
+                "开启后将申请悬浮窗权限，点击小部件不再启动 Activity"
+            textSize = 12f
+            setTextColor(Color.parseColor("#9CA3AF"))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = 4.dpToPx(context) }
+        }
+        root.addView(tvOverlayHint)
+
         radioGroup.setOnCheckedChangeListener { _, id ->
             layoutCustom.visibility = if (id == 2) View.VISIBLE else View.GONE
+        }
+
+        switchOverlay.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked && !WidgetClickProxyActivity.hasOverlayPermission(context)) {
+                // 申请权限
+                try {
+                    WidgetClickProxyActivity.openOverlaySettings(context)
+                    toast("请在弹出的设置中开启「显示悬浮窗」权限，然后返回")
+                } catch (e: Exception) {
+                    toast("无法打开权限设置，请手动授权")
+                }
+                switchOverlay.isChecked = false
+            }
+            tvOverlayHint.text = if (WidgetClickProxyActivity.hasOverlayPermission(context))
+                "✓ 悬浮窗权限已授权，点击将完全无感（无Activity切换）"
+            else
+                "开启后将申请悬浮窗权限，点击小部件不再启动 Activity"
         }
 
         val dialog = AlertDialog.Builder(context, android.R.style.Theme_Material_Light_Dialog)
