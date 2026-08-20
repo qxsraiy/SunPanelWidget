@@ -50,10 +50,15 @@ class SettingsFragment : Fragment() {
         binding.itemLogin.setOnClickListener { showLoginDialog() }
         binding.itemBrowser.setOnClickListener { showBrowserDialog() }
         binding.itemColor.setOnClickListener { showColorDialog() }
-        // 刷新：直接点击，不弹框
+        // 刷新：直接点击，不弹框；转圈等待，成功通知
         binding.itemRefresh.setOnClickListener {
-            val tv = autoCreatedStatus()
-            performRefreshWithSync(tv)
+            val btn = binding.itemRefresh
+            val progress = binding.refreshProgress
+            val text = binding.refreshText
+            btn.isEnabled = false
+            progress.visibility = View.VISIBLE
+            text.text = "刷新中..."
+            performRefreshWithSync(btn, progress, text)
         }
     }
 
@@ -385,7 +390,8 @@ class SettingsFragment : Fragment() {
                 prefs.cardColor = tvHex.text.toString()
                 prefs.cardOpacity = opacitySlider.value.toInt()
                 updateColorSummary()
-                toast("颜色已保存，请刷新桌面小部件")
+                refreshWidget()
+                toast("颜色已更新，小组件已自动刷新")
             }
             .setNegativeButton("取消", null)
             .create()
@@ -399,17 +405,10 @@ class SettingsFragment : Fragment() {
 
     // ========== ④ 刷新小组件弹框 ==========
 
-    /** 自动创建状态文字 */
-    private fun autoCreatedStatus(): TextView {
-        return TextView(requireContext()).apply {
-            val t = if (prefs.isConfigured) "已配置" else "未配置"
-            Log.d("SunPanelWidget", "刷新同步开始（服务器: ${prefs.serverUrl.isNotBlank()}）")
-            text = t
-        }
-    }
-
     /** 先重新拉取服务器数据，再刷新小部件 */
-    private fun performRefreshWithSync(tvStatus: TextView) {
+    private fun performRefreshWithSync(
+        btn: LinearLayout? = null, progress: ProgressBar? = null, tvText: TextView? = null
+    ) {
         val serverUrl = prefs.serverUrl
         val token = prefs.token
         val username = prefs.username
@@ -417,6 +416,7 @@ class SettingsFragment : Fragment() {
 
         if (serverUrl.isBlank()) {
             toast("请先在账号登录中配置服务器地址")
+            btn?.isEnabled = true; progress?.visibility = View.GONE; tvText?.text = "刷新小组件"
             return
         }
 
@@ -424,45 +424,53 @@ class SettingsFragment : Fragment() {
             try {
                 var authApi: SunPanelApiService
                 if (token.isNotBlank()) {
-                    // 已有会话 token，直接重新拉取
                     SunPanelApi.reset()
                     authApi = SunPanelApi.getService(serverUrl, token)
                 } else if (username.isNotBlank() && password.isNotBlank()) {
-                    // 重新登录获取 token，再拉取
-                    tvStatus.text = "正在登录..."
+                    tvText?.text = "正在登录..."
                     SunPanelApi.reset()
                     val loginApi = SunPanelApi.getService(serverUrl, "")
                     val loginResp = loginApi.login(LoginRequest(username, password))
                     if (loginResp.code != 0 || loginResp.data == null) {
                         toast("❌ 登录失败: ${loginResp.msg}")
+                        btn?.isEnabled = true; progress?.visibility = View.GONE; tvText?.text = "刷新小组件"
                         return@launch
                     }
                     prefs.token = loginResp.data.token
                     SunPanelApi.reset()
                     authApi = SunPanelApi.getService(serverUrl, prefs.token)
                 } else if (prefs.apiToken.isNotBlank()) {
-                    // 只有 API Token：能拉分组，书签可能拉不到
                     SunPanelApi.reset()
                     authApi = SunPanelApi.getService(serverUrl, prefs.apiToken)
                 } else {
                     toast("请先在账号登录中填写账号密码或 API Token")
+                    btn?.isEnabled = true; progress?.visibility = View.GONE; tvText?.text = "刷新小组件"
                     return@launch
                 }
 
-                tvStatus.text = "正在拉取数据..."
-                validateAndCache(authApi, serverUrl, tvStatus)
+                tvText?.text = "正在拉取数据..."
+                validateAndCache(authApi, serverUrl) { total, fail ->
+                    // 恢复按钮状态
+                    btn?.isEnabled = true; progress?.visibility = View.GONE; tvText?.text = "刷新小组件"
+                    if (fail > 0) toast("⚠️ $fail 个分组失败，共 $total 个书签已刷新")
+                    else toast("✅ 同步完成！$total 个书签已刷新")
+                }
             } catch (e: Exception) {
                 Log.e("SunPanelWidget", "刷新同步异常", e)
                 toast("刷新异常: ${e.localizedMessage ?: "未知错误"}")
+                btn?.isEnabled = true; progress?.visibility = View.GONE; tvText?.text = "刷新小组件"
             }
         }
     }
 
-    /** 拉取全部分组+书签并写缓存，然后刷新小部件 */
+    /** 拉取全部分组+书签并写缓存，然后刷新小部件
+     *  onDone: 刷新按钮流程专用回调（负责恢复按钮状态+通知）
+     *  tvStatus: 登录/同步流程专用状态文本 */
     private suspend fun validateAndCache(
         authApi: SunPanelApiService,
         serverUrl: String,
-        tvStatus: TextView
+        tvStatus: TextView? = null,
+        onDone: ((total: Int, fail: Int) -> Unit)? = null
     ) {
         var groups = emptyList<ItemIconGroup>()
         try {
@@ -472,13 +480,14 @@ class SettingsFragment : Fragment() {
                 val oa = authApi.getGroupsOpenApi()
                 if (oa.code == 0 && oa.data != null) groups = oa.data.list.map { it.toItemIconGroup() }
             }
-        } catch (e: Exception) {
-            toast("❌ 获取分组失败: ${e.message}")
+        } catch (_: Exception) {
+            if (isAdded) toast("❌ 获取分组失败")
+            onDone?.invoke(0, -1)
             return
         }
-        if (groups.isEmpty()) { toast("⚠️ 未获取到分组"); return }
+        if (groups.isEmpty()) { if (isAdded) toast("⚠️ 未获取到分组"); onDone?.invoke(0, -1); return }
 
-        tvStatus.text = "正在拉取分组书签..."
+        if (tvStatus != null && isAdded) tvStatus.text = "正在拉取 ${groups.size} 个分组书签..."
         val cachedGroups = mutableListOf<CachedGroupData>()
         var fail = 0
         for (group in groups) {
@@ -491,8 +500,17 @@ class SettingsFragment : Fragment() {
         val total = cachedGroups.sumOf { it.bookmarks.size }
         prefs.cachedPanelData = CachedPanelData(cachedGroups)
         refreshWidget()
-        if (fail > 0) toast("⚠️ $fail 个分组失败，共 $total 个书签已刷新")
-        else toast("✅ 同步完成！$total 个书签，已刷新")
+        if (onDone != null) {
+            onDone(total, fail)
+        } else {
+            if (tvStatus != null && isAdded) {
+                tvStatus.text = if (fail > 0) "⚠️ $fail 个分组失败，共 $total 个书签"
+                else "✅ 同步完成！$total 个书签"
+            }
+            if (fail > 0) toast("⚠️ $fail 个分组失败，共 $total 个书签已刷新")
+            else toast("✅ 同步完成！$total 个书签，已刷新")
+        }
+        (activity as? MainActivity)?.refreshPanel()
     }
 
     // ========== 登录/同步逻辑 ==========

@@ -114,34 +114,35 @@
                 android:textSize="18sp" />
         </LinearLayout>
 
-        <!-- ④ 刷新小组件（红色框，直接点击刷新，不弹框） -->
+        <!-- ④ 刷新小组件（红色按钮，直接点击刷新，不弹框） -->
         <LinearLayout
             android:id="@+id/itemRefresh"
             android:layout_width="match_parent"
-            android:layout_height="60dp"
+            android:layout_height="56dp"
             android:layout_marginTop="24dp"
             android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingHorizontal="16dp"
-            android:background="@drawable/bg_setting_item"
+            android:gravity="center"
+            android:background="@drawable/bg_refresh_red"
             android:clickable="true"
             android:focusable="true">
 
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="🔄 刷新小组件"
-                android:textColor="#DC2626"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+            <ProgressBar
+                android:id="@+id/refreshProgress"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_marginEnd="10dp"
+                android:indeterminate="true"
+                android:indeterminateTint="@android:color/white"
+                android:visibility="gone" />
 
             <TextView
+                android:id="@+id/refreshText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="立即同步并刷新"
-                android:textColor="#DC2626"
-                android:textSize="12sp" />
+                android:text="刷新小组件"
+                android:textColor="@android:color/white"
+                android:textSize="16sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <!-- 底部文字 -->
