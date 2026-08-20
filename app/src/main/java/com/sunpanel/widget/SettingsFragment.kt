@@ -45,7 +45,11 @@ class SettingsFragment : Fragment() {
         binding.itemLogin.setOnClickListener { showLoginDialog() }
         binding.itemBrowser.setOnClickListener { showBrowserDialog() }
         binding.itemColor.setOnClickListener { showColorDialog() }
-        binding.itemRefresh.setOnClickListener { showRefreshDialog() }
+        // 刷新：直接点击，不弹框
+        binding.itemRefresh.setOnClickListener {
+            val tv = autoCreatedStatus()
+            performRefreshWithSync(tv)
+        }
     }
 
     // ========== ① 账号登录弹框 ==========
@@ -102,25 +106,12 @@ class SettingsFragment : Fragment() {
         }
         root.addView(wrapInput(context, etApi))
 
-        // 登录并同步按钮
+        // 登录并同步按钮（点击响应在弹框创建后统一注册，便于同步完成自动关闭弹框）
         val btnLogin = MaterialButton(context).apply {
             text = "登录并同步"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 48.dpToPx(context)
             ).apply { topMargin = 16.dpToPx(context) }
-            setOnClickListener {
-                val server = etServer.text.toString().trim()
-                val user = etUser.text.toString().trim()
-                val pass = etPass.text.toString().trim()
-                val api = etApi.text.toString().trim()
-                if (server.isBlank()) { toast("请填写服务器地址"); return@setOnClickListener }
-                prefs.serverUrl = server; prefs.username = user; prefs.password = pass; prefs.apiToken = api
-                if (user.isNotBlank() && pass.isNotBlank()) {
-                    performLogin(server, user, pass, api, tvStatus)
-                } else if (api.isNotBlank()) {
-                    performSyncWithApiTokenOnly(server, api, tvStatus)
-                } else { toast("请填写账号密码或 API Token") }
-            }
         }
         root.addView(btnLogin)
 
@@ -139,7 +130,7 @@ class SettingsFragment : Fragment() {
         val dialog = AlertDialog.Builder(context, android.R.style.Theme_Material_Light_Dialog)
             .setTitle("账号登录")
             .setView(root)
-            .setPositiveButton("关闭", null)
+            .setCancelable(false)   // 不允许按返回键或点外部关闭
             .create()
         dialog.show()
         styleDialog(dialog)
@@ -147,6 +138,21 @@ class SettingsFragment : Fragment() {
             (resources.displayMetrics.widthPixels * 0.9).toInt(),
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
+
+        // 登录并同步按钮：成功后自动关闭弹框
+        btnLogin.setOnClickListener {
+            val server = etServer.text.toString().trim()
+            val user = etUser.text.toString().trim()
+            val pass = etPass.text.toString().trim()
+            val api = etApi.text.toString().trim()
+            if (server.isBlank()) { toast("请填写服务器地址"); return@setOnClickListener }
+            prefs.serverUrl = server; prefs.username = user; prefs.password = pass; prefs.apiToken = api
+            if (user.isNotBlank() && pass.isNotBlank()) {
+                performLogin(server, user, pass, api, tvStatus) { if (isAdded) dialog.dismiss() }
+            } else if (api.isNotBlank()) {
+                performSyncWithApiTokenOnly(server, api, tvStatus) { if (isAdded) dialog.dismiss() }
+            } else { toast("请填写账号密码或 API Token") }
+        }
     }
 
     // ========== ② 打开方式弹框 ==========
@@ -388,21 +394,7 @@ class SettingsFragment : Fragment() {
 
     // ========== ④ 刷新小组件弹框 ==========
 
-    private fun showRefreshDialog() {
-        val dialog = AlertDialog.Builder(requireContext(), android.R.style.Theme_Material_Light_Dialog)
-            .setTitle("刷新小组件")
-            .setMessage("将重新拉取服务器数据（同步面板新增/删除/修改）后刷新小组件。\n需要已配置账号密码或 API Token")
-            .setPositiveButton("立即刷新") { _, _ ->
-                val tv = autoCreatedStatus()
-                performRefreshWithSync(tv)
-            }
-            .setNegativeButton("取消", null)
-            .create()
-        dialog.show()
-        styleDialog(dialog)
-    }
-
-    /** 创建一个状态文字（用于日志定位，弹框内不展示） */
+    /** 自动创建状态文字 */
     private fun autoCreatedStatus(): TextView {
         return TextView(requireContext()).apply {
             val t = if (prefs.isConfigured) "已配置" else "未配置"
@@ -500,7 +492,10 @@ class SettingsFragment : Fragment() {
 
     // ========== 登录/同步逻辑 ==========
 
-    private fun performLogin(serverUrl: String, username: String, password: String, apiToken: String, tvStatus: TextView) {
+    private fun performLogin(
+        serverUrl: String, username: String, password: String,
+        apiToken: String, tvStatus: TextView, onDone: (() -> Unit)? = null
+    ) {
         tvStatus.text = "正在登录..."
         lifecycleScope.launch {
             try {
@@ -509,6 +504,7 @@ class SettingsFragment : Fragment() {
                 val loginResponse = apiService.login(LoginRequest(username, password))
                 if (loginResponse.code != 0 || loginResponse.data == null) {
                     tvStatus.text = "❌ 登录失败: ${loginResponse.msg}"
+                    toast("❌ 登录失败: ${loginResponse.msg}")
                     return@launch
                 }
                 prefs.token = loginResponse.data.token
@@ -516,13 +512,18 @@ class SettingsFragment : Fragment() {
                 SunPanelApi.reset()
                 val authApi = SunPanelApi.getService(serverUrl, prefs.token)
                 syncPanelData(authApi, tvStatus)
+                // 同步完成后自动关闭弹框（主线程）
+                onDone?.invoke()
             } catch (e: Exception) {
                 tvStatus.text = "❌ 网络错误: ${e.localizedMessage ?: "未知错误"}"
+                toast("❌ 网络错误: ${e.localizedMessage ?: "未知错误"}")
             }
         }
     }
 
-    private fun performSyncWithApiTokenOnly(serverUrl: String, apiToken: String, tvStatus: TextView) {
+    private fun performSyncWithApiTokenOnly(
+        serverUrl: String, apiToken: String, tvStatus: TextView, onDone: (() -> Unit)? = null
+    ) {
         tvStatus.text = "正在同步..."
         lifecycleScope.launch {
             try {
@@ -531,11 +532,15 @@ class SettingsFragment : Fragment() {
                 val resp = authApi.getGroupsOpenApi()
                 if (resp.code == 0 && resp.data != null) {
                     tvStatus.text = "✅ 获取到 ${resp.data.list.size} 个分组\n⚠️ 书签需账号密码"
+                    toast("✅ 分组同步完成（共 ${resp.data.list.size} 个）")
                 } else {
                     tvStatus.text = "❌ API Token 验证失败"
+                    toast("❌ API Token 验证失败: ${resp.msg}")
                 }
+                onDone?.invoke()
             } catch (e: Exception) {
                 tvStatus.text = "❌ 网络错误"
+                toast("❌ 网络错误")
             }
         }
     }

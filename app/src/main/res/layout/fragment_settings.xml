@@ -114,44 +114,44 @@
                 android:textSize="18sp" />
         </LinearLayout>
 
-        <!-- ④ 刷新小组件 -->
+        <!-- ④ 刷新小组件（红色框，直接点击刷新，不弹框） -->
         <LinearLayout
             android:id="@+id/itemRefresh"
-            style="@style/SettingItem">
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:layout_marginTop="24dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp"
+            android:background="@drawable/bg_setting_item"
+            android:clickable="true"
+            android:focusable="true">
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="刷新小组件"
-                android:textColor="#1F2937"
-                android:textSize="15sp"
+                android:text="🔄 刷新小组件"
+                android:textColor="#DC2626"
+                android:textSize="16sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="更新桌面数据"
-                android:textColor="#9CA3AF"
+                android:text="立即同步并刷新"
+                android:textColor="#DC2626"
                 android:textSize="12sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="›"
-                android:textColor="#9CA3AF"
-                android:textSize="18sp" />
         </LinearLayout>
 
-        <!-- 底部说明 -->
+        <!-- 底部文字 -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="16dp"
             android:gravity="center"
-            android:text="点击上方条目，在弹出的窗口中完成配置"
+            android:text="刷新后自动关闭，无需额外操作"
             android:textColor="#9CA3AF"
-            android:textSize="12sp" />
+            android:textSize="11sp" />
     </LinearLayout>
 </ScrollView>
