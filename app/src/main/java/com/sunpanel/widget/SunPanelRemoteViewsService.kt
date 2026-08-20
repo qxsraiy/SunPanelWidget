@@ -183,14 +183,15 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
                     finalColor = (baseColor and 0x00FFFFFF) or (alpha shl 24)
                 }
 
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    // setColorStateList 是 API 31+ 方法
                     views.setColorStateList(
                         R.id.widgetItemRoot,
                         "setBackgroundTintList",
                         android.content.res.ColorStateList.valueOf(finalColor)
                     )
                 } else {
-                    // 低版本兜底：直接设半透明纯色（无圆角）
+                    // 低版本(API 29-30)兜底：直接设半透明纯色（无圆角）
                     views.setInt(R.id.widgetItemRoot, "setBackgroundColor", finalColor)
                 }
             } catch (e: Exception) {
