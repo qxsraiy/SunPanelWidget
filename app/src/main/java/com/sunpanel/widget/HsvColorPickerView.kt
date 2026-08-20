@@ -57,8 +57,27 @@ class HsvColorPickerView @JvmOverloads constructor(
     private val huePositions = floatArrayOf(0f, 1f/6, 2f/6, 3f/6, 4f/6, 5f/6, 1f)
     private val hueGradient = LinearGradient(0f, 0f, 1f, 0f, hueColors, huePositions, Shader.TileMode.CLAMP)
 
-    // SV 方块着色器
-    private var svShader: Shader? = null
+    // SV 方块着色器（Bitmap 缓存，HSV 精确计算）
+    private var svBitmap: Bitmap? = null
+    private var lastHueForBitmap = -1f
+
+    private fun invalidateSvBitmap() {
+        svBitmap = null
+        lastHueForBitmap = -1f
+    }
+
+    private fun generateSvBitmap(): Bitmap {
+        val size = minOf((svRect.width()).toInt(), 256).coerceAtLeast(1)
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        for (x in 0 until size) {
+            for (y in 0 until size) {
+                val s = x.toFloat() / size
+                val v = 1f - y.toFloat() / size
+                bmp.setPixel(x, y, Color.HSVToColor(floatArrayOf(hue, s, v)))
+            }
+        }
+        return bmp
+    }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
@@ -80,6 +99,7 @@ class HsvColorPickerView @JvmOverloads constructor(
 
         // 更新着色器
         updateShaders(w.toFloat(), h.toFloat())
+        invalidateSvBitmap()
     }
 
     private fun updateShaders(w: Float, h: Float) {
@@ -115,25 +135,17 @@ class HsvColorPickerView @JvmOverloads constructor(
         canvas.drawCircle(barCx, barCy, 8f * density, indicatorPaint)
         canvas.drawCircle(barCx, barCy, 8f * density, indicatorPaint2)
 
-        // 绘制 SV 方块
-        val svBg = Paint(Paint.ANTI_ALIAS_FLAG)
-        // 当前色相对应的纯色
-        val hueColor = Color.HSVToColor(floatArrayOf(hue, 1f, 1f))
-        // 第一层：饱和度渐变（横向） 白 → 纯色
-        svBg.shader = LinearGradient(
-            svRect.left, 0f, svRect.right, 0f,
-            Color.WHITE, hueColor, Shader.TileMode.CLAMP
-        )
-        val svR = r
-        canvas.drawRoundRect(svRect, svR, svR, svBg)
-        // 第二层：亮度渐变（纵向） 透明黑 → 纯黑（叠加变暗，保留色相）
-        svBg.shader = LinearGradient(
-            0f, svRect.top, 0f, svRect.bottom,
-            0x00000000, 0xFF000000, Shader.TileMode.CLAMP
-        )
-        canvas.drawRoundRect(svRect, svR, svR, svBg)
+        // 绘制 SV 方块（Bitmap 精确渲染，与 getColor 同公式无偏差）
+        if (svBitmap == null || hue != lastHueForBitmap) {
+            svBitmap = generateSvBitmap()
+            lastHueForBitmap = hue
+        }
+        svBitmap?.let { bmp ->
+            val dst = RectF(svRect)
+            canvas.drawBitmap(bmp, null, dst, null)
+        }
         // SV 边框
-        canvas.drawRoundRect(svRect, svR, svR, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        canvas.drawRoundRect(svRect, r, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 1f
             color = Color.parseColor("#DDDDDD")
@@ -156,7 +168,8 @@ class HsvColorPickerView @JvmOverloads constructor(
                     barThumbX = clamped
                     hue = (clamped - hueBarRect.left) / hueBarRect.width() * 360f
                     hue = hue.coerceIn(0f, 360f)
-                    // 更新 SV 方块（色相变了，需要重绘）
+                    // 色相改变，SV 方块需重新生成
+                    invalidateSvBitmap()
                     invalidate()
                     notifyColorChanged()
                     return true
@@ -189,9 +202,11 @@ class HsvColorPickerView @JvmOverloads constructor(
     fun setColor(color: Int) {
         val hsv = FloatArray(3)
         Color.colorToHSV(color, hsv)
+        val oldHue = hue
         hue = hsv[0].coerceIn(0f, 360f)
         saturation = hsv[1].coerceIn(0f, 1f)
         value = hsv[2].coerceIn(0f, 1f)
+        if (hue != oldHue) invalidateSvBitmap()
         // 更新滑块位置
         if (width > 0) {
             val available = (width - margin * 2 * density).coerceAtLeast(1f)

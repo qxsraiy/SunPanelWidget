@@ -430,9 +430,11 @@ class SettingsFragment : Fragment() {
         dialog.window?.apply {
             setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
             setDimAmount(0.3f)
-            attributes.apply {
-                // 轻微模糊阴影，模拟磨砂
-            }
+        }
+        // 按钮文字颜色（Dialog 默认可能白色，此处显式设置为深色）
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(Color.parseColor("#1F2937"))
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(Color.parseColor("#6B7280"))
         }
     }
 
