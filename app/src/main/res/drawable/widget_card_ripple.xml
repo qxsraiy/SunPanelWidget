@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 书签卡片背景：半透明圆角卡片 + 点击水波涟漪 -->
+<!-- 书签卡片背景：基底白色（由 App 设置通过 setBackgroundTintList 动态着色）+ 点击水波涟漪 -->
 <ripple xmlns:android="http://schemas.android.com/apk/res/android"
     android:color="#59FFFFFF">
 
-    <!-- 卡片底（普通状态显示） -->
+    <!-- 卡片底：白色基底，会与设置的颜色做乘法混合 -->
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="#26FFFFFF" />
+            <solid android:color="#FFFFFF" />
             <corners android:radius="12dp" />
             <stroke
                 android:width="1px"

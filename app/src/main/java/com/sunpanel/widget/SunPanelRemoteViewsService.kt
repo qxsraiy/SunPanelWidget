@@ -88,10 +88,10 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
             }
         }
 
-        /** 分组标题：纯文字，无卡片底、无水波。背景覆盖为透明，隐藏图标和备注 */
+        /** 分组标题：纯文字，无卡片底、无水波 */
         private fun renderHeader(views: RemoteViews, header: WidgetDisplayItem.Header) {
-            // ⭐ 背景覆盖为透明（去掉 ripple 卡片底色，标题行不要水波）
-            views.setInt(R.id.widgetItemRoot, "setBackgroundColor", 0x00000000.toInt())
+            // ⭐ 统一用 tint 机制（透明色），与书签行一致，避免 GridView 复用串色
+            applyCardBackground(views, android.graphics.Color.TRANSPARENT)
             views.setTextViewText(R.id.widgetItemTitle, header.groupName)
             // 隐藏图标和备注
             views.setViewVisibility(R.id.widgetItemIcon, View.GONE)
@@ -108,6 +108,9 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
             // 显示图标和备注
             views.setViewVisibility(R.id.widgetItemIcon, View.VISIBLE)
             views.setViewVisibility(R.id.widgetItemDesc, View.VISIBLE)
+
+            // ⭐⭐ 卡片底色：应用用户自定义颜色 + 透明度（统一半透明）⭐⭐
+            applyCardBackground(views, null)  // null = 使用用户设置
 
             // 名称
             val title = info.title.ifBlank { "未命名" }
@@ -158,6 +161,43 @@ class SunPanelRemoteViewsService : RemoteViewsService() {
         override fun hasStableIds(): Boolean = false
 
         // ========== 工具 ==========
+
+        /**
+         * 统一设置卡片背景（tint 机制，所有行一致，避免 GridView 复用串色）
+         * @param overrideColor 非 null 时用指定颜色（全透明等）；null 时用用户设置（cardColor + cardOpacity）
+         */
+        private fun applyCardBackground(views: RemoteViews, overrideColor: Int?) {
+            try {
+                val finalColor: Int
+                if (overrideColor != null) {
+                    finalColor = overrideColor
+                } else {
+                    val prefs = PreferencesManager.getInstance(context)
+                    val baseColor = try {
+                        Color.parseColor(prefs.cardColor)
+                    } catch (_: Exception) {
+                        Color.WHITE
+                    }
+                    // cardOpacity: 0-100（值越小越透明）→ alpha = opacity*255/100
+                    val alpha = (prefs.cardOpacity * 255 / 100).coerceIn(0, 255)
+                    finalColor = (baseColor and 0x00FFFFFF) or (alpha shl 24)
+                }
+
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    views.setColorStateList(
+                        R.id.widgetItemRoot,
+                        "setBackgroundTintList",
+                        android.content.res.ColorStateList.valueOf(finalColor)
+                    )
+                } else {
+                    // 低版本兜底：直接设半透明纯色（无圆角）
+                    views.setInt(R.id.widgetItemRoot, "setBackgroundColor", finalColor)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "设置卡片底色失败", e)
+            }
+        }
+
 
         /** 从 URL 提取域名（用于备注兜底显示） */
         private fun shortDomain(url: String): String {

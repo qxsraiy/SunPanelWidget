@@ -1,7 +1,12 @@
 package com.sunpanel.widget
 
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.view.View
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -43,6 +48,12 @@ class MainActivity : AppCompatActivity() {
             binding.switchUseChrome.isChecked = prefs.useChrome
             binding.tvStatus.text = "✅ 已配置，点击「保存并同步」可重新拉取数据"
         }
+
+        // === 初始化卡片颜色色板 ===
+        initColorPalette()
+
+        // === 初始化卡片不透明度滑块 ===
+        initOpacitySlider()
 
         // Chrome 开关变更时保存
         binding.switchUseChrome.setOnCheckedChangeListener { _, isChecked ->
@@ -88,6 +99,113 @@ class MainActivity : AppCompatActivity() {
             refreshWidget()
             Toast.makeText(this, "已发送刷新指令", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    // ========== 卡片外观自定义 ==========
+
+    /** 预置色板颜色 */
+    private val colorPaletteColors = listOf(
+        "#FFFFFF",  // 白
+        "#E8E8E8",  // 极浅灰
+        "#CCCCCC",  // 浅灰
+        "#AAAAAA",  // 中灰
+        "#808080",  // 标准灰
+        "#666666",  // 深灰
+        "#3D3D3D",  // 深色灰
+        "#1A1A2E",  // 深蓝黑
+        "#F5F0E8",  // 米白
+        "#E8F4FD",  // 浅蓝
+        "#E8F5E9",  // 浅绿
+        "#FFF3E0",  // 浅橙
+    )
+
+    private var selectedColorIndex = 0  // 默认白色
+
+    private fun initColorPalette() {
+        val palette = binding.colorPalette
+        palette.removeAllViews()
+
+        // 读取已保存的颜色，找到对应索引
+        val savedColor = prefs.cardColor.uppercase()
+        selectedColorIndex = colorPaletteColors.indexOfFirst { it.uppercase() == savedColor }
+            .coerceAtLeast(0)
+
+        // 每行 6 个色块，分两行
+        val row1 = LinearLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_HORIZONTAL
+        }
+        val row2 = LinearLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_HORIZONTAL
+        }
+
+        colorPaletteColors.forEachIndexed { index, colorHex ->
+            val chip = createColorChip(colorHex, index == selectedColorIndex)
+            chip.setOnClickListener {
+                selectedColorIndex = index
+                // 保存到偏好
+                prefs.cardColor = colorHex
+                // 重建色板以更新选中边框
+                initColorPalette()
+            }
+            if (index < 6) row1.addView(chip) else row2.addView(chip)
+        }
+
+        palette.addView(row1)
+        palette.addView(row2)
+    }
+
+    private fun createColorChip(colorHex: String, isSelected: Boolean): View {
+        val size = 44 // dp
+        val margin = 6 // dp
+        val params = LinearLayout.LayoutParams(
+            dpToPx(size),
+            dpToPx(size)
+        ).apply {
+            setMargins(dpToPx(margin), dpToPx(margin), dpToPx(margin), dpToPx(margin))
+        }
+
+        val view = View(this).apply {
+            layoutParams = params
+        }
+
+        val bg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpToPx(8).toFloat()
+            try {
+                setColor(Color.parseColor(colorHex))
+            } catch (_: Exception) {
+                setColor(Color.WHITE)
+            }
+            setStroke(if (isSelected) dpToPx(3) else dpToPx(1), Color.parseColor("#666666"))
+        }
+        view.background = bg
+        return view
+    }
+
+    private fun initOpacitySlider() {
+        val savedOpacity = prefs.cardOpacity.toFloat()
+        binding.opacitySlider.value = savedOpacity
+        binding.tvOpacityValue.text = "${savedOpacity.toInt()}%"
+
+        binding.opacitySlider.addOnChangeListener { _, value, _ ->
+            val intVal = value.toInt()
+            binding.tvOpacityValue.text = "${intVal}%"
+            prefs.cardOpacity = intVal
+        }
+    }
+
+    private fun dpToPx(dp: Int): Int {
+        return (dp * resources.displayMetrics.density).toInt()
     }
 
     /**

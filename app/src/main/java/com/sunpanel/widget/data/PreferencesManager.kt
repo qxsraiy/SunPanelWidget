@@ -71,6 +71,25 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_USE_CHROME, false)
         set(value) = prefs.edit().putBoolean(KEY_USE_CHROME, value).apply()
 
+    // === 卡片外观自定义 ===
+
+    /**
+     * 卡片底色（十六进制，如 "#808080" 灰色）
+     * 默认：白色（#FFFFFF）
+     */
+    var cardColor: String
+        get() = prefs.getString(KEY_CARD_COLOR, "#FFFFFF") ?: "#FFFFFF"
+        set(value) = prefs.edit().putString(KEY_CARD_COLOR, value).apply()
+
+    /**
+     * 卡片透明度（0-100，值越小越透明）
+     * 默认：15（约 15% 不透明度）
+     */
+    var cardOpacity: Int
+        get() = prefs.getInt(KEY_CARD_OPACITY, 15)
+            .coerceIn(0, 100)
+        set(value) = prefs.edit().putInt(KEY_CARD_OPACITY, value.coerceIn(0, 100)).apply()
+
     // === 小部件翻页页码（按widgetId存储） ===
 
     fun getWidgetPage(widgetId: Int): Int {
@@ -94,6 +113,8 @@ class PreferencesManager(context: Context) {
         private const val KEY_TOKEN = "token"
         private const val KEY_CACHED_DATA = "cached_data"
         private const val KEY_USE_CHROME = "use_chrome"
+        private const val KEY_CARD_COLOR = "card_color"
+        private const val KEY_CARD_OPACITY = "card_opacity"
 
         // 单例
         @Volatile
