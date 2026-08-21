@@ -140,7 +140,8 @@ class SettingsFragment : Fragment() {
         val dialog = AlertDialog.Builder(context, android.R.style.Theme_Material_Light_Dialog)
             .setTitle("账号登录")
             .setView(root)
-            .setCancelable(false)   // 不允许按返回键或点外部关闭
+            .setCancelable(true)   // 允许按返回键或点外部关闭
+            .setPositiveButton("关闭") { d, _ -> d.dismiss() }
             .create()
         dialog.show()
         styleDialog(dialog)
@@ -537,9 +538,13 @@ class SettingsFragment : Fragment() {
                 syncPanelData(authApi, tvStatus)
                 // 同步完成后自动关闭弹框（主线程）
                 onDone?.invoke()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                tvStatus.text = "❌ 网络错误: ${e.localizedMessage ?: "未知错误"}"
-                toast("❌ 网络错误: ${e.localizedMessage ?: "未知错误"}")
+                if (isAdded) {
+                    tvStatus.text = "❌ 网络错误: ${e.localizedMessage ?: "未知错误"}"
+                    toast("❌ 网络错误: ${e.localizedMessage ?: "未知错误"}")
+                }
             }
         }
     }
@@ -561,9 +566,13 @@ class SettingsFragment : Fragment() {
                     toast("❌ API Token 验证失败: ${resp.msg}")
                 }
                 onDone?.invoke()
-            } catch (_: Exception) {
-                tvStatus.text = "❌ 网络错误"
-                toast("❌ 网络错误")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (isAdded) {
+                    tvStatus.text = "❌ 网络错误"
+                    toast("❌ 网络错误")
+                }
             }
         }
     }
@@ -601,7 +610,7 @@ class SettingsFragment : Fragment() {
         prefs.cachedPanelData = CachedPanelData(cachedGroups)
         refreshWidget()
         if (isAdded) toast("同步完成：$total 个书签")
-        (activity as? MainActivity)?.refreshPanel()
+        if (isAdded) (activity as? MainActivity)?.refreshPanel()
     }
 
     private fun refreshWidget() {
